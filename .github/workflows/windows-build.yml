@@ -1,0 +1,51 @@
+﻿name: windows-build
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: 补齐 CUDA 12 运行时（nvidia 官方 wheel）
+        run: |
+          pip install nvidia-cuda-runtime-cu12 nvidia-cufft-cu12 nvidia-cusparse-cu12 nvidia-cublas-cu12
+          python -c "import pathlib,sys,shutil,os; p=pathlib.Path(sys.prefix)/'Lib'/'site-packages'/'nvidia'; d=pathlib.Path('vendor/cuda'); d.mkdir(parents=True,exist_ok=True); [shutil.copy2(f,d/f.name) for f in p.rglob('*.dll')]; print('CUDA DLLs copied:', [x.name for x in d.glob('*.dll')])"
+
+      - name: PyInstaller 打包（onedir：CUDA 体积大，onefile 会过慢）
+        run: |
+          pyinstaller --noconfirm --clean --windowed --onedir ^
+            --name DSW_CT ^
+            --paths src ^
+            --add-data "assets;assets" ^
+            --add-data "Fermi;Fermi" ^
+            --add-binary "vendor/leapct/libleapct.dll;vendor/leapct" ^
+            --collect-binaries nvidia ^
+            --hidden-import ct_geometry --hidden-import ct_leap --hidden-import ct_scene ^
+            --hidden-import ct_helical --hidden-import ct_index --hidden-import ct_fermi ^
+            --hidden-import ct_spectral --hidden-import ct6_bridge ^
+            src/frozen_entry.py
+          if (Test-Path vendor/cuda) { Copy-Item vendor/cuda/*.dll dist/DSW_CT/ -Force }
+          if (Test-Path vendor/xraylib) { Copy-Item vendor/xraylib/*.pyd dist/DSW_CT/ -Force }
+          if (Test-Path vendor/leapct) { Copy-Item vendor/leapct/libleapct.dll dist/DSW_CT/ -Force }
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: DSW_CT-windows
+          path: dist/DSW_CT
+          retention-days: 30
