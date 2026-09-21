@@ -1,0 +1,59 @@
+name: build-macos-dmg
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -V
+          python -m pip -V
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Make .icns from Atom.jpeg
+        run: |
+          ls -la resources || true
+          file resources/Atom.jpeg || true
+          mkdir -p resources/icon.iconset
+          sips -s format png resources/Atom.jpeg --out resources/Atom.png
+          sips -s format png -z 16 16     resources/Atom.png --out resources/icon.iconset/icon_16x16.png
+          sips -s format png -z 32 32     resources/Atom.png --out resources/icon.iconset/icon_16x16@2x.png
+          sips -s format png -z 32 32     resources/Atom.png --out resources/icon.iconset/icon_32x32.png
+          sips -s format png -z 64 64     resources/Atom.png --out resources/icon.iconset/icon_32x32@2x.png
+          sips -s format png -z 128 128   resources/Atom.png --out resources/icon.iconset/icon_128x128.png
+          sips -s format png -z 256 256   resources/Atom.png --out resources/icon.iconset/icon_128x128@2x.png
+          sips -s format png -z 256 256   resources/Atom.png --out resources/icon.iconset/icon_256x256.png
+          sips -s format png -z 512 512   resources/Atom.png --out resources/icon.iconset/icon_256x256@2x.png
+          sips -s format png -z 512 512   resources/Atom.png --out resources/icon.iconset/icon_512x512.png
+          sips -s format png -z 1024 1024 resources/Atom.png --out resources/icon.iconset/icon_512x512@2x.png
+          file resources/icon.iconset/icon_16x16.png || true
+          iconutil -c icns resources/icon.iconset -o resources/Atom.icns
+
+      - name: Build .app
+        run: |
+          pyinstaller --windowed --name Fermi src/gui.py --icon resources/Atom.icns --add-data "resources/Atom.jpeg:resources" --add-data "data:data"
+
+      - name: Create DMG
+        run: |
+          rm -rf dmg_root
+          mkdir -p dmg_root
+          cp -R "dist/Fermi.app" dmg_root/
+          ln -s /Applications dmg_root/Applications
+          hdiutil create -volname "Fermi" -srcfolder dmg_root -ov -format UDZO "dist/Fermi.dmg"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fermi-macos-dmg
+          path: dist/Fermi.dmg

@@ -1,0 +1,1105 @@
+﻿{
+  "settings": {
+    "energy_keV": 200.0,
+    "temp_k": 300.0,
+    "bias_v": 500.0,
+    "thickness_mm": 2.0,
+    "pixel_pitches_mm": [
+      1.0,
+      0.8,
+      0.6,
+      0.4,
+      0.2
+    ],
+    "has_xraylib": false,
+    "k_B_eV_per_K": 8.617e-05,
+    "q_C": 1.602e-19
+  },
+  "materials": {
+    "4H-SiC": {
+      "name": "4H-SiC",
+      "Eg": 3.26,
+      "mu_e": 950.0,
+      "mu_h": 120.0,
+      "tau_e": 1e-06,
+      "tau_h": 1e-06,
+      "W_pair": 7.8,
+      "density": 3.21,
+      "atomic_composition": {
+        "Si": 0.5,
+        "C": 0.5
+      }
+    },
+    "CZT": {
+      "name": "CZT",
+      "Eg": 1.57,
+      "mu_e": 1000.0,
+      "mu_h": 80.0,
+      "tau_e": 5e-06,
+      "tau_h": 5e-07,
+      "W_pair": 4.6,
+      "density": 5.78,
+      "atomic_composition": {
+        "Cd": 0.45,
+        "Zn": 0.05,
+        "Te": 0.5
+      }
+    },
+    "CdTe": {
+      "name": "CdTe",
+      "Eg": 1.44,
+      "mu_e": 1100.0,
+      "mu_h": 100.0,
+      "tau_e": 3e-06,
+      "tau_h": 1e-06,
+      "W_pair": 4.43,
+      "density": 5.85,
+      "atomic_composition": {
+        "Cd": 0.5,
+        "Te": 0.5
+      }
+    },
+    "GaAs": {
+      "name": "GaAs",
+      "Eg": 1.42,
+      "mu_e": 8500.0,
+      "mu_h": 400.0,
+      "tau_e": 1e-05,
+      "tau_h": 1e-06,
+      "W_pair": 4.2,
+      "density": 5.32,
+      "atomic_composition": {
+        "Ga": 0.5,
+        "As": 0.5
+      }
+    },
+    "Ge": {
+      "name": "Ge",
+      "Eg": 0.66,
+      "mu_e": 3900.0,
+      "mu_h": 1900.0,
+      "tau_e": 0.001,
+      "tau_h": 0.001,
+      "W_pair": 2.96,
+      "density": 5.32,
+      "atomic_composition": {
+        "Ge": 1.0
+      }
+    },
+    "HgI2": {
+      "name": "HgI2",
+      "Eg": 2.13,
+      "mu_e": 100.0,
+      "mu_h": 4.0,
+      "tau_e": 1e-06,
+      "tau_h": 1e-05,
+      "W_pair": 4.2,
+      "density": 6.4,
+      "atomic_composition": {
+        "Hg": 0.33,
+        "I": 0.67
+      }
+    },
+    "Perovskite": {
+      "name": "Perovskite",
+      "Eg": 1.55,
+      "mu_e": 60.0,
+      "mu_h": 60.0,
+      "tau_e": 1e-06,
+      "tau_h": 1e-06,
+      "W_pair": 5.0,
+      "density": 4.16,
+      "atomic_composition": {
+        "C": 1,
+        "H": 6,
+        "N": 1,
+        "Pb": 1,
+        "I": 3
+      }
+    },
+    "Si": {
+      "name": "Si",
+      "Eg": 1.12,
+      "mu_e": 1400.0,
+      "mu_h": 450.0,
+      "tau_e": 0.001,
+      "tau_h": 0.001,
+      "W_pair": 3.6,
+      "density": 2.33,
+      "atomic_composition": {
+        "Si": 1.0
+      }
+    },
+    "TlBr": {
+      "name": "TlBr",
+      "Eg": 2.68,
+      "mu_e": 30.0,
+      "mu_h": 4.0,
+      "tau_e": 1e-05,
+      "tau_h": 1e-06,
+      "W_pair": 6.5,
+      "density": 7.56,
+      "atomic_composition": {
+        "Tl": 0.5,
+        "Br": 0.5
+      }
+    }
+  },
+  "results_by_pixel_mm": {
+    "1.0": [
+      {
+        "material": "CZT",
+        "eff": 0.968073059591805,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 0.1765811175084398,
+        "enc_electrons": 46.95219199823049,
+        "fwhm_noise_keV": 0.9055193848073823,
+        "max_throughput_mcps_mm2": 0.6065306597126334,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 500.0,
+        "pcct_score": 76.62220895174192,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 66.66666666666666,
+          "score_res": 81.88961230385236,
+          "score_stability": 90.0,
+          "score_flux": 0.6065306597126334,
+          "score_peak": 97.13138534503165,
+          "score_total": 76.62220895174192
+        }
+      },
+      {
+        "material": "CdTe",
+        "eff": 0.9729541971859471,
+        "peak_ratio": 0.9872500000000001,
+        "dark_current_nA": 2.42491166604494,
+        "enc_electrons": 173.99297078677557,
+        "fwhm_noise_keV": 1.9584419400917932,
+        "max_throughput_mcps_mm2": 0.6703200460356393,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 400.00000000000006,
+        "pcct_score": 73.97588736302664,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 73.33333333333333,
+          "score_res": 60.83116119816413,
+          "score_stability": 90.0,
+          "score_flux": 0.6703200460356393,
+          "score_peak": 94.99671107390667,
+          "score_total": 73.97588736302664
+        }
+      },
+      {
+        "material": "Ge",
+        "eff": 0.35116634711211336,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 41774157.37595988,
+        "enc_electrons": 722166.9203677268,
+        "fwhm_noise_keV": 5034.081204370558,
+        "max_throughput_mcps_mm2": 17.38663908641728,
+        "argmax_flux_mcps_mm2": 42.89473684210526,
+        "tau_dead_ns": 21.05263157894737,
+        "pcct_score": 66.12427471073832,
+        "score_breakdown": {
+          "score_eff": 42.139961653453604,
+          "score_speed": 100.0,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 17.38663908641728,
+          "score_peak": 99.30183535718797,
+          "score_total": 66.12427471073832
+        }
+      },
+      {
+        "material": "GaAs",
+        "eff": 0.3534784893128974,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 26.47913457067445,
+        "enc_electrons": 574.9573568367525,
+        "fwhm_noise_keV": 5.73178165176616,
+        "max_throughput_mcps_mm2": 3.642563392737703,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 100.00000000000001,
+        "pcct_score": 63.58781309894945,
+        "score_breakdown": {
+          "score_eff": 42.41741871754768,
+          "score_speed": 100.0,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 3.642563392737703,
+          "score_peak": 97.13138534503165,
+          "score_total": 63.58781309894945
+        }
+      },
+      {
+        "material": "4H-SiC",
+        "eff": 0.09627833666277508,
+        "peak_ratio": 0.9597500000000001,
+        "dark_current_nA": 1.1142433621032946e-15,
+        "enc_electrons": 3.729698876471764e-06,
+        "fwhm_noise_keV": 0.9755500448464982,
+        "max_throughput_mcps_mm2": 0.7165313105737893,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 333.33333333333337,
+        "pcct_score": 61.30678206671155,
+        "score_breakdown": {
+          "score_eff": 11.55340039953301,
+          "score_speed": 63.33333333333333,
+          "score_res": 80.48899910307003,
+          "score_stability": 100.0,
+          "score_flux": 0.7165313105737893,
+          "score_peak": 84.84621695400043,
+          "score_total": 61.30678206671155
+        }
+      },
+      {
+        "material": "Si",
+        "eff": 0.06875935170187963,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 1822.5189715033196,
+        "enc_electrons": 4770.015286819936,
+        "fwhm_noise_keV": 40.44562003725698,
+        "max_throughput_mcps_mm2": 4.137836400632785,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 88.8888888888889,
+        "pcct_score": 58.59167147850322,
+        "score_breakdown": {
+          "score_eff": 8.251122204225556,
+          "score_speed": 93.33333333333333,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 4.137836400632785,
+          "score_peak": 99.30183535718797,
+          "score_total": 58.59167147850322
+        }
+      },
+      {
+        "material": "TlBr",
+        "eff": 0.9999999999999923,
+        "peak_ratio": 0.87725,
+        "dark_current_nA": 2.6366300056494754e-12,
+        "enc_electrons": 0.0001814296810314384,
+        "fwhm_noise_keV": 0.890551275900334,
+        "max_throughput_mcps_mm2": 4.5399929762484854e-05,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 51.953489781034975,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 2.0,
+          "score_res": 82.18897448199331,
+          "score_stability": 60.0,
+          "score_flux": 4.5399929762484854e-05,
+          "score_peak": 59.22342332521914,
+          "score_total": 51.953489781034975
+        }
+      },
+      {
+        "material": "Perovskite",
+        "eff": 1.0,
+        "peak_ratio": 0.55825,
+        "dark_current_nA": 0.02888689446663652,
+        "enc_electrons": 18.990402486511623,
+        "fwhm_noise_keV": 0.8124438883696313,
+        "max_throughput_mcps_mm2": 0.513417119032592,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 666.6666666666667,
+        "pcct_score": 43.270677461360975,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 4.0,
+          "score_res": 83.75112223260737,
+          "score_stability": 100.0,
+          "score_flux": 0.513417119032592,
+          "score_peak": 9.712139840437892,
+          "score_total": 43.270677461360975
+        }
+      },
+      {
+        "material": "HgI2",
+        "eff": 0.9999999983251404,
+        "peak_ratio": 0.69025,
+        "dark_current_nA": 3.3618548049753054e-07,
+        "enc_electrons": 0.06478481431640919,
+        "fwhm_noise_keV": 0.7158583104270458,
+        "max_throughput_mcps_mm2": 4.5399929762484854e-05,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 42.13893334754664,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 6.666666666666667,
+          "score_res": 85.68283379145909,
+          "score_stability": 60.0,
+          "score_flux": 4.5399929762484854e-05,
+          "score_peak": 22.699989758062895,
+          "score_total": 42.13893334754664
+        }
+      }
+    ],
+    "0.8": [
+      {
+        "material": "CZT",
+        "eff": 0.968073059591805,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 0.11301191520540149,
+        "enc_electrons": 37.56175359858439,
+        "fwhm_noise_keV": 0.852543612261356,
+        "max_throughput_mcps_mm2": 0.7261490370736908,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 500.0,
+        "pcct_score": 76.78728768770135,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 66.66666666666666,
+          "score_res": 82.94912775477287,
+          "score_stability": 90.0,
+          "score_flux": 0.7261490370736908,
+          "score_peak": 97.13138534503165,
+          "score_total": 76.78728768770135
+        }
+      },
+      {
+        "material": "CdTe",
+        "eff": 0.9729541971859471,
+        "peak_ratio": 0.9872500000000001,
+        "dark_current_nA": 1.551943466268762,
+        "enc_electrons": 139.19437662942047,
+        "fwhm_noise_keV": 1.627667751009009,
+        "max_throughput_mcps_mm2": 0.7741419687922483,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 400.00000000000006,
+        "pcct_score": 74.91659016164436,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 73.33333333333333,
+          "score_res": 67.44664497981982,
+          "score_stability": 90.0,
+          "score_flux": 0.7741419687922483,
+          "score_peak": 94.99671107390667,
+          "score_total": 74.91659016164436
+        }
+      },
+      {
+        "material": "Ge",
+        "eff": 0.35116634711211336,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 26735460.72061433,
+        "enc_electrons": 577733.5362941816,
+        "fwhm_noise_keV": 4027.264979638491,
+        "max_throughput_mcps_mm2": 27.303528957037866,
+        "argmax_flux_mcps_mm2": 74.3157894736842,
+        "tau_dead_ns": 21.05263157894737,
+        "pcct_score": 67.51263929262521,
+        "score_breakdown": {
+          "score_eff": 42.139961653453604,
+          "score_speed": 100.0,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 27.303528957037866,
+          "score_peak": 99.30183535718797,
+          "score_total": 67.51263929262521
+        }
+      },
+      {
+        "material": "GaAs",
+        "eff": 0.3534784893128974,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 16.946646125231652,
+        "enc_electrons": 459.96588546940205,
+        "fwhm_noise_keV": 4.605497622825883,
+        "max_throughput_mcps_mm2": 5.50545981868131,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 100.00000000000001,
+        "pcct_score": 64.95322525466908,
+        "score_breakdown": {
+          "score_eff": 42.41741871754768,
+          "score_speed": 100.0,
+          "score_res": 7.89004754348234,
+          "score_stability": 100.0,
+          "score_flux": 5.50545981868131,
+          "score_peak": 97.13138534503165,
+          "score_total": 64.95322525466908
+        }
+      },
+      {
+        "material": "4H-SiC",
+        "eff": 0.09627833666277508,
+        "peak_ratio": 0.9597500000000001,
+        "dark_current_nA": 7.131157517461086e-16,
+        "enc_electrons": 2.983759101177411e-06,
+        "fwhm_noise_keV": 0.9755500448464974,
+        "max_throughput_mcps_mm2": 0.992366072946153,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 333.33333333333337,
+        "pcct_score": 61.34539893344369,
+        "score_breakdown": {
+          "score_eff": 11.55340039953301,
+          "score_speed": 63.33333333333333,
+          "score_res": 80.48899910307006,
+          "score_stability": 100.0,
+          "score_flux": 0.992366072946153,
+          "score_peak": 84.84621695400043,
+          "score_total": 61.34539893344369
+        }
+      },
+      {
+        "material": "Si",
+        "eff": 0.06875935170187963,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 1166.4121417621247,
+        "enc_electrons": 3816.012229455949,
+        "fwhm_noise_keV": 32.358939469513274,
+        "max_throughput_mcps_mm2": 6.297078773550855,
+        "argmax_flux_mcps_mm2": 21.94736842105263,
+        "tau_dead_ns": 88.8888888888889,
+        "pcct_score": 58.89396541071176,
+        "score_breakdown": {
+          "score_eff": 8.251122204225556,
+          "score_speed": 93.33333333333333,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 6.297078773550855,
+          "score_peak": 99.30183535718797,
+          "score_total": 58.89396541071176
+        }
+      },
+      {
+        "material": "TlBr",
+        "eff": 0.9999999999999923,
+        "peak_ratio": 0.87725,
+        "dark_current_nA": 1.6874432036156644e-12,
+        "enc_electrons": 0.00014514374482515072,
+        "fwhm_noise_keV": 0.890551275898775,
+        "max_throughput_mcps_mm2": 0.0016615572731739309,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 51.953716043067416,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 2.0,
+          "score_res": 82.18897448202449,
+          "score_stability": 60.0,
+          "score_flux": 0.0016615572731739309,
+          "score_peak": 59.22342332521914,
+          "score_total": 51.953716043067416
+        }
+      },
+      {
+        "material": "Perovskite",
+        "eff": 1.0,
+        "peak_ratio": 0.55825,
+        "dark_current_nA": 0.018487612458647374,
+        "enc_electrons": 15.1923219892093,
+        "fwhm_noise_keV": 0.8012891088236918,
+        "max_throughput_mcps_mm2": 0.6526810763306461,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 666.6666666666667,
+        "pcct_score": 43.32140779811132,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 4.0,
+          "score_res": 83.97421782352616,
+          "score_stability": 100.0,
+          "score_flux": 0.6526810763306461,
+          "score_peak": 9.712139840437892,
+          "score_total": 43.32140779811132
+        }
+      },
+      {
+        "material": "HgI2",
+        "eff": 0.9999999983251404,
+        "peak_ratio": 0.69025,
+        "dark_current_nA": 2.151587075184196e-07,
+        "enc_electrons": 0.051827851453127356,
+        "fwhm_noise_keV": 0.7158582071812668,
+        "max_throughput_mcps_mm2": 0.0016615572731739309,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 42.139159898662896,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 6.666666666666667,
+          "score_res": 85.68283585637467,
+          "score_stability": 60.0,
+          "score_flux": 0.0016615572731739309,
+          "score_peak": 22.699989758062895,
+          "score_total": 42.139159898662896
+        }
+      }
+    ],
+    "0.6": [
+      {
+        "material": "CZT",
+        "eff": 0.968073059591805,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 0.06356920230303832,
+        "enc_electrons": 28.17131519893829,
+        "fwhm_noise_keV": 0.8089452858224087,
+        "max_throughput_mcps_mm2": 1.4546901545228086,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 500.0,
+        "pcct_score": 77.01135875817327,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 66.66666666666666,
+          "score_res": 83.82109428355182,
+          "score_stability": 90.0,
+          "score_flux": 1.4546901545228086,
+          "score_peak": 97.13138534503165,
+          "score_total": 77.01135875817327
+        }
+      },
+      {
+        "material": "CdTe",
+        "eff": 0.9729541971859471,
+        "peak_ratio": 0.9872500000000001,
+        "dark_current_nA": 0.8729681997761783,
+        "enc_electrons": 104.39578247206535,
+        "fwhm_noise_keV": 1.31404266351431,
+        "max_throughput_mcps_mm2": 2.1986544449230205,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 400.00000000000006,
+        "pcct_score": 75.99417215328782,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 73.33333333333333,
+          "score_res": 73.7191467297138,
+          "score_stability": 90.0,
+          "score_flux": 2.1986544449230205,
+          "score_peak": 94.99671107390667,
+          "score_total": 75.99417215328782
+        }
+      },
+      {
+        "material": "Ge",
+        "eff": 0.35116634711211336,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 15038696.655345555,
+        "enc_electrons": 433300.1522206361,
+        "fwhm_noise_keV": 3020.4487608849563,
+        "max_throughput_mcps_mm2": 48.502741064701326,
+        "argmax_flux_mcps_mm2": 137.15789473684208,
+        "tau_dead_ns": 21.05263157894737,
+        "pcct_score": 70.48052898769808,
+        "score_breakdown": {
+          "score_eff": 42.139961653453604,
+          "score_speed": 100.0,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 48.502741064701326,
+          "score_peak": 99.30183535718797,
+          "score_total": 70.48052898769808
+        }
+      },
+      {
+        "material": "GaAs",
+        "eff": 0.3534784893128974,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 9.532488445442802,
+        "enc_electrons": 344.97441410205147,
+        "fwhm_noise_keV": 3.4864258574747224,
+        "max_throughput_mcps_mm2": 10.091062081514874,
+        "argmax_flux_mcps_mm2": 32.421052631578945,
+        "tau_dead_ns": 100.00000000000001,
+        "pcct_score": 68.72861051444903,
+        "score_breakdown": {
+          "score_eff": 42.41741871754768,
+          "score_speed": 100.0,
+          "score_res": 30.27148285050555,
+          "score_stability": 100.0,
+          "score_flux": 10.091062081514874,
+          "score_peak": 97.13138534503165,
+          "score_total": 68.72861051444903
+        }
+      },
+      {
+        "material": "4H-SiC",
+        "eff": 0.09627833666277508,
+        "peak_ratio": 0.9597500000000001,
+        "dark_current_nA": 4.01127610357186e-16,
+        "enc_electrons": 2.237819325883058e-06,
+        "fwhm_noise_keV": 0.9755500448464968,
+        "max_throughput_mcps_mm2": 2.895662646759676,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 333.33333333333337,
+        "pcct_score": 61.61186045377758,
+        "score_breakdown": {
+          "score_eff": 11.55340039953301,
+          "score_speed": 63.33333333333333,
+          "score_res": 80.48899910307007,
+          "score_stability": 100.0,
+          "score_flux": 2.895662646759676,
+          "score_peak": 84.84621695400043,
+          "score_total": 61.61186045377758
+        }
+      },
+      {
+        "material": "Si",
+        "eff": 0.06875935170187963,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 656.1068297411949,
+        "enc_electrons": 2862.0091720919613,
+        "fwhm_noise_keV": 24.273163407074453,
+        "max_throughput_mcps_mm2": 11.488359440451694,
+        "argmax_flux_mcps_mm2": 32.421052631578945,
+        "tau_dead_ns": 88.8888888888889,
+        "pcct_score": 59.62074470407787,
+        "score_breakdown": {
+          "score_eff": 8.251122204225556,
+          "score_speed": 93.33333333333333,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 11.488359440451694,
+          "score_peak": 99.30183535718797,
+          "score_total": 59.62074470407787
+        }
+      },
+      {
+        "material": "TlBr",
+        "eff": 0.9999999999999923,
+        "peak_ratio": 0.87725,
+        "dark_current_nA": 9.491868020338112e-13,
+        "enc_electrons": 0.00010885780861886305,
+        "fwhm_noise_keV": 0.8905512758975626,
+        "max_throughput_mcps_mm2": 0.02732372244729256,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 51.95730874619518,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 2.0,
+          "score_res": 82.18897448204874,
+          "score_stability": 60.0,
+          "score_flux": 0.027323722447292562,
+          "score_peak": 59.22342332521914,
+          "score_total": 51.95730874619518
+        }
+      },
+      {
+        "material": "Perovskite",
+        "eff": 1.0,
+        "peak_ratio": 0.55825,
+        "dark_current_nA": 0.010399282007989147,
+        "enc_electrons": 11.394241491906975,
+        "fwhm_noise_keV": 0.7925046282702074,
+        "max_throughput_mcps_mm2": 0.7866278610665534,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 666.6666666666667,
+        "pcct_score": 43.3647568935241,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 4.0,
+          "score_res": 84.14990743459585,
+          "score_stability": 100.0,
+          "score_flux": 0.7866278610665532,
+          "score_peak": 9.712139840437892,
+          "score_total": 43.3647568935241
+        }
+      },
+      {
+        "material": "HgI2",
+        "eff": 0.9999999983251404,
+        "peak_ratio": 0.69025,
+        "dark_current_nA": 1.2102677297911102e-07,
+        "enc_electrons": 0.03887088858984551,
+        "fwhm_noise_keV": 0.715858126878984,
+        "max_throughput_mcps_mm2": 0.02732372244729256,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 42.14275282663367,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 6.666666666666667,
+          "score_res": 85.68283746242032,
+          "score_stability": 60.0,
+          "score_flux": 0.027323722447292562,
+          "score_peak": 22.699989758062895,
+          "score_total": 42.14275282663367
+        }
+      }
+    ],
+    "0.4": [
+      {
+        "material": "Ge",
+        "eff": 0.35116634711211336,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 6683865.180153582,
+        "enc_electrons": 288866.7681470908,
+        "fwhm_noise_keV": 2013.632557077759,
+        "max_throughput_mcps_mm2": 101.96536084227364,
+        "argmax_flux_mcps_mm2": 200.0,
+        "tau_dead_ns": 21.05263157894737,
+        "pcct_score": 77.6901452386399,
+        "score_breakdown": {
+          "score_eff": 42.139961653453604,
+          "score_speed": 100.0,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 100.0,
+          "score_peak": 99.30183535718797,
+          "score_total": 77.6901452386399
+        }
+      },
+      {
+        "material": "CZT",
+        "eff": 0.968073059591805,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 0.028252978801350373,
+        "enc_electrons": 18.780876799292194,
+        "fwhm_noise_keV": 0.776305964296237,
+        "max_throughput_mcps_mm2": 4.582118046437608,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 500.0,
+        "pcct_score": 77.54058876331463,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 66.66666666666666,
+          "score_res": 84.47388071407525,
+          "score_stability": 90.0,
+          "score_flux": 4.582118046437608,
+          "score_peak": 97.13138534503165,
+          "score_total": 77.54058876331463
+        }
+      },
+      {
+        "material": "CdTe",
+        "eff": 0.9729541971859471,
+        "peak_ratio": 0.9872500000000001,
+        "dark_current_nA": 0.3879858665671905,
+        "enc_electrons": 69.59718831471024,
+        "fwhm_noise_keV": 1.0333016376129873,
+        "max_throughput_mcps_mm2": 5.50545981868131,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 400.00000000000006,
+        "pcct_score": 77.2431997781377,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 73.33333333333333,
+          "score_res": 79.33396724774026,
+          "score_stability": 90.0,
+          "score_flux": 5.50545981868131,
+          "score_peak": 94.99671107390667,
+          "score_total": 77.2431997781377
+        }
+      },
+      {
+        "material": "GaAs",
+        "eff": 0.3534784893128974,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 4.236661531307913,
+        "enc_electrons": 229.98294273470103,
+        "fwhm_noise_keV": 2.3847414159534606,
+        "max_throughput_mcps_mm2": 22.987239222926522,
+        "argmax_flux_mcps_mm2": 63.84210526315789,
+        "tau_dead_ns": 100.00000000000001,
+        "pcct_score": 74.26992675415309,
+        "score_breakdown": {
+          "score_eff": 42.41741871754768,
+          "score_speed": 100.0,
+          "score_res": 52.30517168093078,
+          "score_stability": 100.0,
+          "score_flux": 22.987239222926522,
+          "score_peak": 99.30183535718797,
+          "score_total": 74.26992675415309
+        }
+      },
+      {
+        "material": "4H-SiC",
+        "eff": 0.09627833666277508,
+        "peak_ratio": 0.9597500000000001,
+        "dark_current_nA": 1.7827893793652716e-16,
+        "enc_electrons": 1.4918795505887055e-06,
+        "fwhm_noise_keV": 0.9755500448464962,
+        "max_throughput_mcps_mm2": 6.8081534239016515,
+        "argmax_flux_mcps_mm2": 21.94736842105263,
+        "tau_dead_ns": 333.33333333333337,
+        "pcct_score": 62.15960916257745,
+        "score_breakdown": {
+          "score_eff": 11.55340039953301,
+          "score_speed": 63.33333333333333,
+          "score_res": 80.48899910307007,
+          "score_stability": 100.0,
+          "score_flux": 6.8081534239016515,
+          "score_peak": 84.84621695400043,
+          "score_total": 62.15960916257745
+        }
+      },
+      {
+        "material": "Si",
+        "eff": 0.06875935170187963,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 291.6030354405312,
+        "enc_electrons": 1908.0061147279746,
+        "fwhm_noise_keV": 16.18964714819029,
+        "max_throughput_mcps_mm2": 25.826155729897962,
+        "argmax_flux_mcps_mm2": 74.3157894736842,
+        "tau_dead_ns": 88.8888888888889,
+        "pcct_score": 61.62803618460035,
+        "score_breakdown": {
+          "score_eff": 8.251122204225556,
+          "score_speed": 93.33333333333333,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 25.826155729897966,
+          "score_peak": 99.30183535718797,
+          "score_total": 61.62803618460035
+        }
+      },
+      {
+        "material": "TlBr",
+        "eff": 0.9999999999999923,
+        "peak_ratio": 0.87725,
+        "dark_current_nA": 4.218608009039161e-13,
+        "enc_electrons": 7.257187241257536e-05,
+        "fwhm_noise_keV": 0.8905512758966965,
+        "max_throughput_mcps_mm2": 0.2018965179946553,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 51.98174893757425,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 2.0,
+          "score_res": 82.18897448206607,
+          "score_stability": 60.0,
+          "score_flux": 0.2018965179946553,
+          "score_peak": 59.22342332521914,
+          "score_total": 51.98174893757425
+        }
+      },
+      {
+        "material": "Perovskite",
+        "eff": 1.0,
+        "peak_ratio": 0.55825,
+        "dark_current_nA": 0.0046219031146618435,
+        "enc_electrons": 7.59616099460465,
+        "fwhm_noise_keV": 0.786169906241562,
+        "max_throughput_mcps_mm2": 3.3743288135900866,
+        "argmax_flux_mcps_mm2": 11.473684210526315,
+        "tau_dead_ns": 666.6666666666667,
+        "pcct_score": 43.74477224855761,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 4.0,
+          "score_res": 84.27660187516877,
+          "score_stability": 100.0,
+          "score_flux": 3.374328813590086,
+          "score_peak": 9.712139840437892,
+          "score_total": 43.74477224855761
+        }
+      },
+      {
+        "material": "HgI2",
+        "eff": 0.9999999983251404,
+        "peak_ratio": 0.69025,
+        "dark_current_nA": 5.37896768796049e-08,
+        "enc_electrons": 0.025913925726563678,
+        "fwhm_noise_keV": 0.7158580695202048,
+        "max_throughput_mcps_mm2": 0.2018965179946553,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 42.16719317861489,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 6.666666666666667,
+          "score_res": 85.68283860959592,
+          "score_stability": 60.0,
+          "score_flux": 0.2018965179946553,
+          "score_peak": 22.699989758062895,
+          "score_total": 42.16719317861489
+        }
+      }
+    ],
+    "0.2": [
+      {
+        "material": "GaAs",
+        "eff": 0.3534784893128974,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 1.0591653828269783,
+        "enc_electrons": 114.99147136735051,
+        "fwhm_noise_keV": 1.3439075257401192,
+        "max_throughput_mcps_mm2": 89.8657928234443,
+        "argmax_flux_mcps_mm2": 200.0,
+        "tau_dead_ns": 100.00000000000001,
+        "pcct_score": 86.54725915082294,
+        "score_breakdown": {
+          "score_eff": 42.41741871754768,
+          "score_speed": 100.0,
+          "score_res": 73.12184948519761,
+          "score_stability": 100.0,
+          "score_flux": 89.8657928234443,
+          "score_peak": 99.30183535718797,
+          "score_total": 86.54725915082294
+        }
+      },
+      {
+        "material": "CdTe",
+        "eff": 0.9729541971859471,
+        "peak_ratio": 0.9872500000000001,
+        "dark_current_nA": 0.09699646664179762,
+        "enc_electrons": 34.79859415735512,
+        "fwhm_noise_keV": 0.8199480263702208,
+        "max_throughput_mcps_mm2": 22.987239222926522,
+        "argmax_flux_mcps_mm2": 63.84210526315789,
+        "tau_dead_ns": 400.00000000000006,
+        "pcct_score": 80.28803900621178,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 73.33333333333333,
+          "score_res": 83.60103947259559,
+          "score_stability": 90.0,
+          "score_flux": 22.987239222926522,
+          "score_peak": 94.99671107390667,
+          "score_total": 80.28803900621178
+        }
+      },
+      {
+        "material": "CZT",
+        "eff": 0.968073059591805,
+        "peak_ratio": 0.99275,
+        "dark_current_nA": 0.007063244700337593,
+        "enc_electrons": 9.390438399646097,
+        "fwhm_noise_keV": 0.7560463180589385,
+        "max_throughput_mcps_mm2": 18.354059642066602,
+        "argmax_flux_mcps_mm2": 53.368421052631575,
+        "tau_dead_ns": 500.0,
+        "pcct_score": 79.52538759616712,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 66.66666666666666,
+          "score_res": 84.87907363882123,
+          "score_stability": 90.0,
+          "score_flux": 18.354059642066602,
+          "score_peak": 97.13138534503165,
+          "score_total": 79.52538759616712
+        }
+      },
+      {
+        "material": "Ge",
+        "eff": 0.35116634711211336,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 1670966.2950383956,
+        "enc_electrons": 144433.3840735454,
+        "fwhm_noise_keV": 1006.8164130558956,
+        "max_throughput_mcps_mm2": 168.99959423036904,
+        "argmax_flux_mcps_mm2": 200.0,
+        "tau_dead_ns": 21.05263157894737,
+        "pcct_score": 77.6901452386399,
+        "score_breakdown": {
+          "score_eff": 42.139961653453604,
+          "score_speed": 100.0,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 100.0,
+          "score_peak": 99.30183535718797,
+          "score_total": 77.6901452386399
+        }
+      },
+      {
+        "material": "Si",
+        "eff": 0.06875935170187963,
+        "peak_ratio": 0.9982500000000002,
+        "dark_current_nA": 72.9007588601328,
+        "enc_electrons": 954.0030573639873,
+        "fwhm_noise_keV": 8.115146491636889,
+        "max_throughput_mcps_mm2": 98.219645900431,
+        "argmax_flux_mcps_mm2": 200.0,
+        "tau_dead_ns": 88.8888888888889,
+        "pcct_score": 71.76312480847497,
+        "score_breakdown": {
+          "score_eff": 8.251122204225556,
+          "score_speed": 93.33333333333333,
+          "score_res": 0.0,
+          "score_stability": 100.0,
+          "score_flux": 98.219645900431,
+          "score_peak": 99.30183535718797,
+          "score_total": 71.76312480847497
+        }
+      },
+      {
+        "material": "4H-SiC",
+        "eff": 0.09627833666277508,
+        "peak_ratio": 0.9597500000000001,
+        "dark_current_nA": 4.456973448413179e-17,
+        "enc_electrons": 7.459397752943527e-07,
+        "fwhm_noise_keV": 0.975550044846496,
+        "max_throughput_mcps_mm2": 27.589802943959615,
+        "argmax_flux_mcps_mm2": 74.3157894736842,
+        "tau_dead_ns": 333.33333333333337,
+        "pcct_score": 65.06904009538557,
+        "score_breakdown": {
+          "score_eff": 11.55340039953301,
+          "score_speed": 63.33333333333333,
+          "score_res": 80.48899910307007,
+          "score_stability": 100.0,
+          "score_flux": 27.58980294395961,
+          "score_peak": 84.84621695400043,
+          "score_total": 65.06904009538557
+        }
+      },
+      {
+        "material": "TlBr",
+        "eff": 0.9999999999999923,
+        "peak_ratio": 0.87725,
+        "dark_current_nA": 1.0546520022597902e-13,
+        "enc_electrons": 3.628593620628768e-05,
+        "fwhm_noise_keV": 0.8905512758961768,
+        "max_throughput_mcps_mm2": 0.6703200460356392,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 52.04732823150144,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 2.0,
+          "score_res": 82.18897448207647,
+          "score_stability": 60.0,
+          "score_flux": 0.6703200460356392,
+          "score_peak": 59.22342332521914,
+          "score_total": 52.04732823150144
+        }
+      },
+      {
+        "material": "Perovskite",
+        "eff": 1.0,
+        "peak_ratio": 0.55825,
+        "dark_current_nA": 0.0011554757786654609,
+        "enc_electrons": 3.798080497302325,
+        "fwhm_noise_keV": 0.782344452827504,
+        "max_throughput_mcps_mm2": 13.665706028274212,
+        "argmax_flux_mcps_mm2": 42.89473684210526,
+        "tau_dead_ns": 666.6666666666667,
+        "pcct_score": 45.19627632817276,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 4.0,
+          "score_res": 84.35311094344993,
+          "score_stability": 100.0,
+          "score_flux": 13.66570602827421,
+          "score_peak": 9.712139840437892,
+          "score_total": 45.19627632817276
+        }
+      },
+      {
+        "material": "HgI2",
+        "eff": 0.9999999983251404,
+        "peak_ratio": 0.69025,
+        "dark_current_nA": 1.3447419219901225e-08,
+        "enc_electrons": 0.012956962863281839,
+        "fwhm_noise_keV": 0.7158580351049353,
+        "max_throughput_mcps_mm2": 0.6703200460356392,
+        "argmax_flux_mcps_mm2": 1.0,
+        "tau_dead_ns": 10000.0,
+        "pcct_score": 42.23277256890337,
+        "score_breakdown": {
+          "score_eff": 100.0,
+          "score_speed": 6.666666666666667,
+          "score_res": 85.6828392979013,
+          "score_stability": 60.0,
+          "score_flux": 0.6703200460356392,
+          "score_peak": 22.699989758062895,
+          "score_total": 42.23277256890337
+        }
+      }
+    ]
+  }
+}

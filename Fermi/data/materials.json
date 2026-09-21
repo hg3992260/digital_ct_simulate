@@ -1,0 +1,130 @@
+{
+    "Si": {
+        "name": "Si",
+        "Eg": 1.12,
+        "mu_e": 1400.0,
+        "mu_h": 450.0,
+        "tau_e": 0.001,
+        "tau_h": 0.001,
+        "W_pair": 3.6,
+        "density": 2.33,
+        "atomic_composition": {
+            "Si": 1.0
+        }
+    },
+    "Ge": {
+        "name": "Ge",
+        "Eg": 0.66,
+        "mu_e": 3900.0,
+        "mu_h": 1900.0,
+        "tau_e": 0.001,
+        "tau_h": 0.001,
+        "W_pair": 2.96,
+        "density": 5.32,
+        "atomic_composition": {
+            "Ge": 1.0
+        }
+    },
+    "CdTe": {
+        "name": "CdTe",
+        "Eg": 1.44,
+        "mu_e": 1100.0,
+        "mu_h": 100.0,
+        "tau_e": 3e-06,
+        "tau_h": 1e-06,
+        "W_pair": 4.43,
+        "density": 5.85,
+        "atomic_composition": {
+            "Cd": 0.5,
+            "Te": 0.5
+        }
+    },
+    "CZT": {
+        "name": "CZT",
+        "Eg": 1.57,
+        "mu_e": 1000.0,
+        "mu_h": 80.0,
+        "tau_e": 5e-06,
+        "tau_h": 5e-07,
+        "W_pair": 4.6,
+        "density": 5.78,
+        "atomic_composition": {
+            "Cd": 0.45,
+            "Zn": 0.05,
+            "Te": 0.5
+        }
+    },
+    "TlBr": {
+        "name": "TlBr",
+        "Eg": 2.68,
+        "mu_e": 30.0,
+        "mu_h": 4.0,
+        "tau_e": 1e-05,
+        "tau_h": 1e-06,
+        "W_pair": 6.5,
+        "density": 7.56,
+        "atomic_composition": {
+            "Tl": 0.5,
+            "Br": 0.5
+        }
+    },
+    "HgI2": {
+        "name": "HgI2",
+        "Eg": 2.13,
+        "mu_e": 100.0,
+        "mu_h": 4.0,
+        "tau_e": 1e-06,
+        "tau_h": 1e-05,
+        "W_pair": 4.2,
+        "density": 6.4,
+        "atomic_composition": {
+            "Hg": 0.33,
+            "I": 0.67
+        }
+    },
+    "GaAs": {
+        "name": "GaAs",
+        "Eg": 1.42,
+        "mu_e": 8500.0,
+        "mu_h": 400.0,
+        "tau_e": 1e-05,
+        "tau_h": 1e-06,
+        "W_pair": 4.2,
+        "density": 5.32,
+        "atomic_composition": {
+            "Ga": 0.5,
+            "As": 0.5
+        }
+    },
+    "Perovskite": {
+        "name": "Perovskite",
+        "Eg": 1.55,
+        "mu_e": 60.0,
+        "mu_h": 60.0,
+        "tau_e": 1e-06,
+        "tau_h": 1e-06,
+        "W_pair": 5.0,
+        "density": 4.16,
+        "atomic_composition": {
+            "C": 1,
+            "H": 6,
+            "N": 1,
+            "Pb": 1,
+            "I": 3
+        }
+    },
+    "4H-SiC": {
+        "name": "4H-SiC",
+        "Eg": 3.26,
+        "mu_e": 950.0,
+        "mu_h": 120.0,
+        "tau_e": 1e-06,
+        "tau_h": 1e-06,
+        "W_pair": 7.8,
+        "density": 3.21,
+        "atomic_composition": {
+            "Si": 0.5,
+            "C": 0.5
+        }
+    }
+}

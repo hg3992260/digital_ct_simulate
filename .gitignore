@@ -1,0 +1,6 @@
+﻿__pycache__/
+*.pyc
+ct6_bridge.json
+dist/
+build/
+*.spec

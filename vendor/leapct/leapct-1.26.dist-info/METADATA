@@ -1,0 +1,16 @@
+Metadata-Version: 2.4
+Name: leapct
+Version: 1.26
+Summary: LivermorE AI Projector for Computed Tomography (LEAPCT)
+Author: Kyle Champley, Hyojin Kim
+Author-email: champley@gmail.com, hkim@llnl.gov
+Keywords: Machine Learning,ML,AI,Computed Tomography,CT,Differentiable Project,Forward Project,Back Project
+Requires-Python: >=3.6
+Requires-Dist: numpy
+Requires-Dist: torch
+Dynamic: author
+Dynamic: author-email
+Dynamic: keywords
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary

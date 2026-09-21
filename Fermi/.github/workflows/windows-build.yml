@@ -1,0 +1,28 @@
+name: build-windows
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: |
+          python --version
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+      - name: Build exe
+        run: |
+          pyinstaller --noconsole --onefile --name Fermi src/gui.py --icon resources/Atom.ico --add-data "resources/Atom.jpeg;resources" --add-data "data;data"
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fermi-windows
+          path: dist/Fermi.exe
+

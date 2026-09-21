@@ -1,0 +1,20 @@
+{
+    "parameters": {
+        "material": "CZT",
+        "energy": 140.0,
+        "temp": 300.0,
+        "bias": 1000.0,
+        "thick": 3.0,
+        "output": "czt_140kev"
+    },
+    "results": {
+        "interaction_efficiency": 0.36216602672224896,
+        "noise_properties": {
+            "ni": 40824.22839701295,
+            "rho": 141577991762.37012,
+            "dark_current_nA": 0.23544149001125306,
+            "enc_electrons": 54.21572137844273,
+            "fwhm_noise_keV": 0.5694439863541976
+        }
+    }
+}
