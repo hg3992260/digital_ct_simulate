@@ -1,4 +1,4 @@
-﻿# 双源 CT 真实几何模拟器 (Cone Beam) — Native Edition
+# 双源 CT 真实几何模拟器 (Cone Beam) — Native Edition
 
 双源宽体 CT 的几何 / 数据 / 重建数字孪生。支持 5 种 CT 架构、LEAP-CT 物理重建、
 半导体探测器响应（Fermi）与严格多材料谱分解，并提供 Agent 控制桥（MCP）。
@@ -30,9 +30,22 @@ docs/                  界面截图
 - Python **3.11**（LEAP/xraylib 的 pyd 为 cp311）
 - 依赖：`pip install -r requirements.txt`
 - **LEAP-CT / xraylib 不走 pip**：已在 `vendor/` 内附带，启动脚本会加入 `sys.path`
-- **CUDA**：`libleapct.dll` 为 CUDA 版。`vendor/cuda/` 仅含 `cudart64_12.dll`；
-  若缺少 `cufft64_12.dll` / `cusparse64_12.dll` / `cublas64_12.dll`（体积过大，
-  未纳入仓库），请安装 CUDA 12 运行时并加入 PATH，或在程序中切 `set_GPU(-1)` 用 CPU。
+- **CUDA**：`libleapct.dll` 为 CUDA 版。按 PE 导入表实测，它直接依赖 **`cufft64_11.dll`**
+  （后者又依赖 `nvJitLink_120_0.dll` / `nvrtc64_120_0.dll`）与显卡驱动自带的 `nvcuda.dll`；
+  **并不需要** cublas / cusparse。这些库体积过大（cufft 单个约 274MB），故未纳入仓库，
+  `vendor/cuda/` 只随仓库带一个 `cudart64_12.dll`。
+  - 源码运行：安装 CUDA 12 运行时并加入 PATH，或在程序中切 `set_GPU(-1)` 走 CPU。
+  - GitHub Actions 打包：`windows-build.yml` 会自动从 nvidia wheel 取
+    cufft / cudart / nvJitLink / nvrtc 打进产物，本机无需装 CUDA。
+
+## 下载可执行文件
+
+GitHub **Actions → `windows-build` → 最新一次 run → Artifacts → `DSW_CT_Windows`**，
+解压后直接运行 `DSW_CT.exe`。
+
+> ⚠️ 不要使用 `DualSourceCT_Simulator.exe`。那个产物来自已删除的 `build.yml`，
+> 编译的是 `simulate_qt.py`（PyQt5 旧原型，现存于 `src/legacy/`）；而且 PyQt5
+> 并不在 `requirements.txt` 里，所以它每次构建都是"绿色但缺模块"的废产物。
 
 ## 运行
 
