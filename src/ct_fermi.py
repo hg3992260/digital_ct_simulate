@@ -21,7 +21,30 @@ import os
 import sys
 import numpy as np
 
-FERMI_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'Fermi')
+def _find_fermi_root():
+    """定位 Fermi 子项目根目录（需含有 src/）。
+
+    源码运行：src/../Fermi。
+    冻结运行：Fermi 被 --add-data "Fermi;Fermi" 打进 _internal/Fermi，
+    此时 __file__ 在 _MEIPASS 下，不能再靠 dirname(dirname(...)) 推断。
+    """
+    here = os.path.dirname(os.path.abspath(__file__))
+    cands = [os.path.join(os.path.dirname(here), 'Fermi'),   # 源码布局
+             os.path.join(here, 'Fermi')]
+    meipass = getattr(sys, '_MEIPASS', None)
+    if meipass:
+        cands.append(os.path.join(meipass, 'Fermi'))
+    if getattr(sys, 'frozen', False):
+        exedir = os.path.dirname(os.path.abspath(sys.executable))
+        cands += [os.path.join(exedir, 'Fermi'),
+                  os.path.join(exedir, '_internal', 'Fermi')]
+    for c in cands:
+        if os.path.isdir(os.path.join(c, 'src')):
+            return c
+    return cands[0]
+
+
+FERMI_ROOT = _find_fermi_root()
 _SIM = {}
 
 
