@@ -130,8 +130,10 @@ if __name__ == '__main__':
 
     _main = _find_main_script()
     if _main is None:
+        # 消息保持 ASCII：CI 控制台可能是 cp1252，抛非 ASCII 会再触发
+        # UnicodeEncodeError，把真正的原因盖掉。
         raise SystemExit(
-            '[FATAL] 找不到 simulate_ct6.py，无法启动。\n'
-            '        打包构建请确认已加 --add-data "src/simulate_ct6.py;."\n'
-            '        搜索过的目录：%s' % (_candidate_dirs(),))
+            '[FATAL] simulate_ct6.py not found, cannot start.\n'
+            '        Packaged builds must pass --add-data "src/simulate_ct6.py;."\n'
+            '        Searched: %s' % (_candidate_dirs(),))
     runpy.run_path(_main, run_name='__main__')

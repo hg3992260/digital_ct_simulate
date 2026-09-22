@@ -15,6 +15,14 @@ import pathlib
 import shutil
 import sys
 
+# 输出一律用 ASCII：GitHub Windows runner 的控制台编码是 cp1252，
+# 打印中文会直接抛 UnicodeEncodeError 把构建搞挂（注释里保留中文没问题）。
+# 这行只是兜底，防止异常信息里混入无法编码的字符。
+try:
+    sys.stdout.reconfigure(errors='replace')
+except Exception:
+    pass
+
 # 需要随产物附带许可声明的第三方分发（用 PyPI 分发名）
 DISTS = [
     'PySide6', 'PyCt6', 'pyqtgraph', 'PyOpenGL',
@@ -32,7 +40,7 @@ def main():
     repo = pathlib.Path('.')
     out = pathlib.Path('dist/DSW_CT')
     if not out.is_dir():
-        print('[collect_licenses] 产物目录不存在：%s（请先跑 PyInstaller）' % out)
+        print('[collect_licenses] output dir not found: %s (run PyInstaller first)' % out)
         return 1
 
     lic_root = out / 'licenses'
@@ -61,7 +69,8 @@ def main():
 
         dest = lic_root / dist_name
         dest.mkdir(parents=True, exist_ok=True)
-        n = 0
+        copied_n = 0
+        found_n = 0
 
         candidates = []
         for g in LICENSE_GLOBS:
@@ -73,6 +82,7 @@ def main():
         for f in candidates:
             if not f.is_file():
                 continue
+            found_n += 1
             try:
                 rel = f.relative_to(di)
             except ValueError:
@@ -80,19 +90,22 @@ def main():
             target = dest / str(rel).replace('\\', '_').replace('/', '_')
             if not target.exists():
                 shutil.copy2(f, target)
-                n += 1
+                copied_n += 1
 
         ver = dist.version
-        if n:
-            got.append('%s %s (%d files)' % (dist_name, ver, n))
+        # 「没找到许可文件」与「已存在、无需再复制」是两回事，不能混为一谈
+        if found_n:
+            got.append('%s %s (%d found, %d copied)' % (dist_name, ver, found_n, copied_n))
         else:
-            missing.append('%s %s (无许可文件)' % (dist_name, ver))
+            missing.append('%s %s (no licence file in metadata)' % (dist_name, ver))
 
-    print('[collect_licenses] 已收集 %d 个分发：' % len(got))
+    print('[collect_licenses] %d/%d distributions carry licence files:'
+          % (len(got), len(DISTS)))
     for g in got:
         print('    + %s' % g)
     if missing:
-        print('[collect_licenses] 跳过 %d 个：%s' % (len(missing), ', '.join(missing)))
+        print('[collect_licenses] without licence files (%d): %s'
+              % (len(missing), ', '.join(missing)))
     return 0
 
 

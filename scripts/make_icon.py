@@ -18,6 +18,13 @@ LOGO.jpg 是 1024x1024 无透明通道的 RGB 图，转成 RGBA 后各尺寸重�
 import pathlib
 import sys
 
+# 输出一律用 ASCII：GitHub Windows runner 的控制台编码是 cp1252，
+# 打印中文会抛 UnicodeEncodeError 把构建搞挂（注释保留中文没问题）。
+try:
+    sys.stdout.reconfigure(errors='replace')
+except Exception:
+    pass
+
 SIZES = [(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)]
 
 
@@ -25,13 +32,13 @@ def main():
     try:
         from PIL import Image
     except ImportError:
-        print('[make_icon] 需要 Pillow：pip install pillow')
+        print('[make_icon] requires Pillow: pip install pillow')
         return 1
 
     src = pathlib.Path('assets/LOGO.jpg')
     out = pathlib.Path('assets/logo.ico')
     if not src.exists():
-        print('[make_icon] 找不到 %s' % src)
+        print('[make_icon] not found: %s' % src)
         return 1
 
     im = Image.open(src)

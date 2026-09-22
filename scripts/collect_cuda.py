@@ -13,6 +13,13 @@ import pathlib
 import shutil
 import sys
 
+# 输出一律用 ASCII：GitHub Windows runner 的控制台编码是 cp1252，
+# 打印中文会抛 UnicodeEncodeError 把构建搞挂（注释保留中文没问题）。
+try:
+    sys.stdout.reconfigure(errors='replace')
+except Exception:
+    pass
+
 # 前缀匹配；注意 'cufftw' 必须在 'cufft' 之前不冲突（这里用 startswith 逐个判断，无顺序问题）
 PREFIXES = ('cufft', 'cufftw', 'cudart', 'nvjitlink', 'nvrtc')
 
@@ -26,7 +33,7 @@ def main():
     dst.mkdir(parents=True, exist_ok=True)
 
     if not src.is_dir():
-        print('[collect_cuda] 未找到 %s —— 请先 pip install nvidia-cufft-cu12 等' % src)
+        print('[collect_cuda] not found: %s -- pip install nvidia-cufft-cu12 etc. first' % src)
         return 1
 
     copied = []
@@ -43,7 +50,8 @@ def main():
 
     missing = [n for n in ('cufft64_11.dll',) if n not in have]
     if missing:
-        print('[collect_cuda] 缺少关键库: %s —— libleapct.dll 将无法加载' % missing)
+        print('[collect_cuda] missing required library: %s -- libleapct.dll will fail to load'
+              % missing)
         return 1
     return 0
 
