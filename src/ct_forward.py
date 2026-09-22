@@ -659,7 +659,15 @@ def mtf_resolution_um(rec, voxel_mm, axis=0, frac=0.10):
     below = np.nonzero(amp < frac * ref)[0]
     if not len(below):
         return None
-    f10 = float(nu[below[0]])
+    i = int(below[0])
+    if i == 0:
+        return None
+    # 亚格点线性插值定位 10% 交点。不做这一步的话，指标会被频率栅格量化
+    # （1024 点 FFT → 每格约 2.8 cyc/mm），M7 的蒙特卡洛会得到一串**完全相同**
+    # 的分辨率、置信区间宽度恒为 0 —— 那不是"误差很小"，是指标量不出来。
+    a0, a1 = float(amp[i - 1]), float(amp[i])
+    t = (frac * ref - a0) / (a1 - a0) if a1 != a0 else 0.0
+    f10 = float(nu[i - 1] + t * (nu[i] - nu[i - 1]))
     return float(500.0 / f10) if f10 > 0 else None
 
 
@@ -773,6 +781,122 @@ def validate_m5(pixel_um=55.0, focus_um=3.0, sod_mm=None, odd_mm=None, K=4,
                            None if res_theory is None else 2.0 * res_theory],
         'crit1_baseline_match': ok1,
         'crit2_resolution_in_band': ok2,
+        'passed': bool(ok1 and ok2),
+    }
+
+
+# ===========================================================================
+# M7 · 尺度验证与置信区间
+#
+# 手册 §8 M7：
+#   * 输入：M1–M6 的输出
+#   * 输出：给定配置下可达分辨率的 **95% 置信区间**
+#   * 验收：与手册 §2.2 的"可达 1–5 µm"一致
+#
+# 不确定性的来源不是凭空加的：手册在 M4 的输入规格里就写了"位移误差 σ_δ"。
+# 故本模块对 σ_δ 做蒙特卡洛，得到分辨率分布 → 95% 置信区间。
+#
+# 两件事必须分开：
+#   ① 尺度验证 —— 已知尺寸的物体重建后尺寸是否对（几何/单位不能错）
+#   ② 置信区间 —— 分辨率的不确定度（σ_δ 传播）
+# 尺度错了，分辨率数字再漂亮也没有意义，所以先验尺度。
+# ===========================================================================
+
+def measure_disk_um(recon, voxel_mm, level=0.5):
+    """测重建图中心圆盘的直径（µm）：过中心的剖面上取 level 倍峰值宽度。
+
+    均匀圆盘的过心剖面是矩形，故半高宽 = 直径 —— 这是最干净的尺度基准。
+    """
+    a = np.asarray(recon, dtype=float)
+    n0, n1 = a.shape
+    cy, cx = n0 // 2, n1 // 2
+    row = a[cy, :]
+    col = a[:, cx]
+    out = []
+    for prof in (row, col):
+        peak = float(prof.max())
+        base = float(np.percentile(prof, 5))
+        half = base + level * (peak - base)
+        c = int(np.argmax(prof))
+        l = c
+        while l > 0 and prof[l] > half:
+            l -= 1
+        r = c
+        while r < len(prof) - 1 and prof[r] > half:
+            r += 1
+        out.append(abs(r - l) * voxel_mm * 1000.0)
+    return float(np.mean(out))
+
+
+def _resolution_once(focus_um, pixel_um, K, M, sod_mm, n_cols, n_angles,
+                     jitter_frac, seed, ell=None, scale_mm=1.0):
+    """跑一次完整链路，返回 MTF-10 分辨率（µm）。"""
+    g = m1_geometry(sod_mm, sod_mm * (M - 1.0), pixel_um, n_cols, 1, n_angles, 180.0)
+    p_eff = g['p_eff_mm']
+    ang = np.linspace(0.0, 180.0, int(n_angles), endpoint=False)
+    if ell is None:
+        ell = slit_phantom(max(p_eff / 6.0, 1e-4))
+    acq = acquire_k_frames(ell, ang, n_cols, p_eff, K=K, scale_mm=scale_mm,
+                           mu_scale=1.0, n_sub=16, jitter_frac=jitter_frac, seed=seed)
+    rec, _ = reconstruct_k(acq, ang, deconvolve=False, focus_um=focus_um, M=M,
+                           pixel_um=pixel_um, focus_blur=True)
+    return mtf_resolution_um(rec, acq['p_dense_mm']), rec, acq
+
+
+def validate_m7(focus_um=3.0, pixel_um=55.0, K=4, n_cols=256, n_angles=180,
+                disk_um=200.0, jitter_frac=0.05, n_trials=12, seed=0,
+                target_band=(1.0, 5.0)):
+    """手册 §8 M7 验收。
+
+    判据 1（尺度）：已知直径的圆盘重建后直径误差 < 5%
+    判据 2（置信区间）：对位移误差 σ_δ 做蒙特卡洛，分辨率的 95% 置信区间
+        应落在手册 §2.2 给出的可达区间内（1–5 µm 焦点源 → 1–5 µm）
+    """
+    f, p = float(focus_um), float(pixel_um)
+    m_prac = 1.0 + (p / f) ** 2
+    M = float(min(m_prac, 40.0)) if m_prac > 1 else 1.0
+    sod_mm = 20.0
+    g = m1_geometry(sod_mm, sod_mm * (M - 1.0), p, n_cols, 1, n_angles, 180.0)
+
+    # --- 判据 1：尺度（已知直径圆盘） ---
+    disk_mm = disk_um / 1000.0
+    ell_disk = [(1.0, 0.0, 0.0, 0.5, 0.5, 0.0)]        # 半径 0.5（体模单位）
+    s_disk = disk_mm                                     # scale_mm → 直径 = disk_mm
+    _, rec_disk, acq_disk = _resolution_once(f, p, K, M, sod_mm, n_cols, n_angles,
+                                             0.0, seed, ell=ell_disk, scale_mm=s_disk)
+    meas_disk = measure_disk_um(rec_disk, acq_disk['p_dense_mm'])
+    scale_err = abs(meas_disk - disk_um) / disk_um
+
+    # --- 判据 2：分辨率 95% 置信区间（蒙特卡洛 over σ_δ） ---
+    res = []
+    for i in range(int(n_trials)):
+        r, _, _ = _resolution_once(f, p, K, M, sod_mm, n_cols, n_angles,
+                                   jitter_frac, 1000 + i)
+        if r is not None:
+            res.append(float(r))
+    res = np.asarray(res, dtype=float)
+    if res.size:
+        lo = float(np.percentile(res, 2.5))
+        hi = float(np.percentile(res, 97.5))
+        mean = float(res.mean())
+        std = float(res.std(ddof=1)) if res.size > 1 else 0.0
+    else:
+        lo = hi = mean = std = None
+
+    ok1 = bool(scale_err < 0.05)
+    ok2 = bool(lo is not None and lo >= target_band[0] * 0.5
+               and hi <= target_band[1] * 2.0)
+    return {
+        'geometry': g, 'M': float(M), 'focus_um': f, 'pixel_um': p, 'K': int(K),
+        'disk_true_um': float(disk_um), 'disk_meas_um': meas_disk,
+        'scale_rel_err': float(scale_err),
+        'jitter_frac': float(jitter_frac), 'n_trials': int(len(res)),
+        'res_samples_um': res.tolist(),
+        'res_mean_um': mean, 'res_std_um': std,
+        'res_ci95_um': [lo, hi],
+        'target_band_um': list(target_band),
+        'crit1_scale': ok1,
+        'crit2_ci_in_band': ok2,
         'passed': bool(ok1 and ok2),
     }
 
