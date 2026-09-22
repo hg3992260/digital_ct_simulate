@@ -183,12 +183,22 @@ def asset_path(name):
     return p if os.path.exists(p) else os.path.join(os.getcwd(), 'assets', name)
 
 
-def app_icon():
+def icon_path():
+    """程序图标文件。
+
+    logo.ico 由 assets/LOGO.jpg 生成（见 scripts/make_icon.py，每次构建都会重新生成），
+    所以"图标来源 = LOGO.jpg"这件事是构建期强制保证的，不靠人记得同步。
+    """
     for name in ('logo.ico', 'logo.png'):
         p = asset_path(name)
         if os.path.exists(p):
-            return QIcon(p)
-    return QIcon()
+            return p
+    return None
+
+
+def app_icon():
+    p = icon_path()
+    return QIcon(p) if p else QIcon()
 
 
 def build_splash_pixmap(width=780, height=640):
@@ -1921,7 +1931,7 @@ class MainWindow(CMainWindow):
     def __init__(self):
         super().__init__(width=1520, height=960,
                          title="双源 CT 真实几何模拟器 (Cone Beam) - Native Edition",
-                         icon=asset_path('logo.ico') if os.path.exists(asset_path('logo.ico')) else None)
+                         icon=icon_path())
         self.setStyleSheet(qss_global())
         self.setMinimumSize(1180, 760)
 

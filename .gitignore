@@ -1,6 +1,13 @@
-﻿__pycache__/
+__pycache__/
 *.pyc
 ct6_bridge.json
 dist/
 build/
 *.spec
+selftest.json
+
+# CUDA 运行时只随仓库带 cudart64_12.dll（0.6MB）。
+# cufft64_11.dll(287MB) / nvJitLink(87MB) / nvrtc(86MB) 超过 GitHub 单文件 100MB 限制，
+# 由 scripts/build_windows.ps1 在构建时从 nvidia wheel 取，不进仓库。
+vendor/cuda/*
+!vendor/cuda/cudart64_12.dll

@@ -60,7 +60,72 @@ def _find_main_script():
     return None
 
 
+# --------------------------------------------------------------------------
+# 冻结环境自检（CI 用）：DSW_CT_SELFTEST=1 时不启动 GUI，只在**打包产物内部**
+# 逐个 import 关键模块并真正构造一次 LEAP 引擎，把结果写成 JSON，用退出码表态。
+#
+# 存在的理由：PyInstaller 只保证"文件在"，不保证"import 得动"。例如 imageio 与
+# lazy_loader 在 import 期要读自己的 dist-info 元数据，若构建时漏了
+# --copy-metadata，文件明明都在、exe 也能启动，但 leapctype 一导入就抛
+# PackageNotFoundError，LEAP-CT 直接不可用。只有真的在冻结环境里 import 才测得出来。
+# --------------------------------------------------------------------------
+_SELFTEST_MODULES = [
+    'numpy', 'scipy', 'imageio', 'skimage', 'matplotlib', 'pyqtgraph', 'OpenGL',
+    'PySide6.QtWidgets', 'PyCt6',
+    'leapctype', 'xraylib',
+    'ct_geometry', 'ct_leap', 'ct_scene', 'ct_helical', 'ct_index',
+    'ct_fermi', 'ct_spectral', 'ct6_bridge',
+]
+
+
+def _selftest():
+    import json
+    import traceback
+
+    report = {
+        'frozen': getattr(sys, 'frozen', False),
+        'meipass': getattr(sys, '_MEIPASS', None),
+        'imports': {},
+        'failures': {},
+    }
+    ok = True
+    for name in _SELFTEST_MODULES:
+        try:
+            __import__(name)
+            report['imports'][name] = 'OK'
+        except Exception as exc:
+            ok = False
+            report['imports'][name] = '%s: %s' % (type(exc).__name__, exc)
+            report['failures'][name] = traceback.format_exc()
+
+    # LEAP：不只看 import，还要真的加载 libleapct.dll 并构造引擎（走 CPU，避免依赖显卡）
+    try:
+        import ct_leap as CL
+        report['leap_available'] = bool(CL.LEAP_AVAILABLE)
+        report['leap_import_error'] = CL.LEAP_IMPORT_ERROR
+        if CL.LEAP_AVAILABLE:
+            CL.LeapEngine(gpu_index=-1)
+            report['leap_engine'] = 'constructed on CPU'
+        else:
+            ok = False
+            report['leap_engine'] = 'unavailable: %s' % CL.LEAP_IMPORT_ERROR
+    except Exception as exc:
+        ok = False
+        report['leap_engine'] = '%s: %s' % (type(exc).__name__, exc)
+        report['failures']['leap_engine'] = traceback.format_exc()
+
+    report['ok'] = ok
+    out = os.environ.get('DSW_CT_SELFTEST_OUT')
+    if out:
+        with open(out, 'w', encoding='utf-8') as fh:
+            json.dump(report, fh, indent=2, ensure_ascii=False)
+    return 0 if ok else 1
+
+
 if __name__ == '__main__':
+    if os.environ.get('DSW_CT_SELFTEST'):
+        raise SystemExit(_selftest())
+
     import runpy
 
     _main = _find_main_script()
