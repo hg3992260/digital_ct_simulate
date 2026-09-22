@@ -901,6 +901,197 @@ def validate_m7(focus_um=3.0, pixel_um=55.0, K=4, n_cols=256, n_angles=180,
     }
 
 
+# ===========================================================================
+# M6 · 剂量-分辨率曲线
+#
+# 手册 §8 M6：
+#   * 输入：光子数 N（或剂量 D）、重建参数
+#   * 输出：分辨率 vs 剂量曲线
+#   * 验收：与手册 §5 的"剂量 N³~N⁴"标度一致
+#
+# 噪声模型是物理的，不是往图上撒高斯白噪：
+#   Beer–Lambert  N_det = N₀·exp(−p)   →  Poisson(N_det)  →  p̂ = −ln(N_det/N₀)
+# 低剂量时重建被量子噪声主导、分辨率变差；剂量上去后收敛到光学极限
+# （由焦点与孔径决定），这正是"剂量-分辨率"曲线该有的形状。
+# ===========================================================================
+
+def add_poisson_noise(dense, n0_photons, seed=0, i0_floor=0.5):
+    """对线积分正弦图加泊松量子噪声。n0_photons = 每探测像素的入射光子数。"""
+    rng = np.random.default_rng(int(seed))
+    p = np.clip(np.asarray(dense, dtype=float), 0.0, None)
+    trans = np.exp(-p)
+    lam = np.maximum(float(n0_photons) * trans, 0.0)
+    counts = rng.poisson(lam).astype(float)
+    return -np.log(np.maximum(counts, float(i0_floor)) / float(n0_photons))
+
+
+def recon_noise(img, frac=0.20):
+    """重建图的**背景噪声**：在偏离中心的空白区取标准差，再用图像峰值归一。
+
+    不能用 std/mean：狭缝体的中心均值极小（大部分是零），比值会爆到几百，
+    完全失去意义。改用"背景区 std / 峰值" —— 对狭缝、圆盘都成立，且无量纲。
+    取偏离中心的位置是为了避开物体的条状伪影。
+    """
+    a = np.asarray(img, dtype=float)
+    n0, n1 = a.shape
+    h = max(4, int(n0 * float(frac) / 2))
+    w = max(4, int(n1 * float(frac) / 2))
+    peak = float(np.max(np.abs(a)))
+    if peak <= 1e-12:
+        return float('inf')
+    # 取中心行**上/下**两侧的方块：必须在重建内切圆之内（iradon(circle=True)
+    # 把圆外全部置零，取角落会量到恒为 0 的"噪声"），同时避开竖直狭缝本身。
+    c0, c1 = n0 // 2, n1 // 2
+    off = int(0.25 * n0)
+    patches = [a[max(0, c0 - off - h):max(0, c0 - off + h), c1 - w:c1 + w],
+               a[min(n0, c0 + off - h):min(n0, c0 + off + h), c1 - w:c1 + w]]
+    s = np.mean([float(np.std(p)) for p in patches if p.size > 4])
+    return float(s / peak)
+
+
+def dose_resolution_curve(focus_um=3.0, pixel_um=55.0, K=4, photons=(1e3, 1e4, 1e5, 1e6),
+                          n_cols=256, n_angles=180, sod_mm=20.0, seed=0,
+                          ell=None, scale_mm=1.0):
+    """M6：给定配置下，扫入射光子数得到"分辨率 vs 剂量"曲线。
+
+    返回 dict: photons / resolution_um / noise / optics_limit_um
+    """
+    f, p = float(focus_um), float(pixel_um)
+    m_prac = 1.0 + (p / f) ** 2
+    M = float(min(m_prac, 40.0)) if m_prac > 1 else 1.0
+    g = m1_geometry(sod_mm, sod_mm * (M - 1.0), p, n_cols, 1, n_angles, 180.0)
+    p_eff = g['p_eff_mm']
+    ang = np.linspace(0.0, 180.0, int(n_angles), endpoint=False)
+    if ell is None:
+        ell = slit_phantom(max(p_eff / 6.0, 1e-4))
+
+    acq = acquire_k_frames(ell, ang, n_cols, p_eff, K=K, scale_mm=scale_mm,
+                           mu_scale=1.0, n_sub=16)
+    clean = apply_focus_blur(assemble_dense(acq), acq['p_dense_mm'], f, M)
+
+    res, noi = [], []
+    from skimage.transform import iradon
+    for i, n0 in enumerate(photons):
+        # 两次独立噪声实现：差值法隔离**纯量子噪声**。
+        # 单次重建的背景 std 里混着 FBP 条状伪影（确定性结构），
+        # 会导致噪声不服从 1/√N（实测 噪声×√N 从 6 涨到 175），无法用于标度检验。
+        r1 = iradon(add_poisson_noise(clean, float(n0), seed=int(seed) + 2 * i).T,
+                    theta=ang, filter_name='ramp', circle=True,
+                    preserve_range=True).astype(np.float64)
+        r2 = iradon(add_poisson_noise(clean, float(n0), seed=int(seed) + 2 * i + 1).T,
+                    theta=ang, filter_name='ramp', circle=True,
+                    preserve_range=True).astype(np.float64)
+        peak = float(np.max(np.abs(clean))) or 1.0
+        # 差值图中物体结构完全抵消，剩下的就是噪声
+        noi.append(float(np.std(r1 - r2) / np.sqrt(2.0)))
+        res.append(mtf_resolution_um(r1, acq['p_dense_mm']))
+    rec0 = iradon(clean.T, theta=ang, filter_name='ramp', circle=True,
+                  preserve_range=True).astype(np.float64)
+    return {
+        'photons': [float(x) for x in photons],
+        'resolution_um': res,
+        'noise': noi,
+        'optics_limit_um': mtf_resolution_um(rec0, acq['p_dense_mm']),
+        'M': M, 'K': int(K), 'focus_um': f, 'pixel_um': p,
+        'p_dense_um': float(acq['p_dense_mm'] * 1000.0),
+    }
+
+
+def _dose_for_noise(focus_um, pixel_um, K, target_noise, n_cols, n_angles,
+                    lo=1e2, hi=1e8, iters=18, seed=0):
+    """二分求"把重建噪声压到 target_noise 所需的光子数"。"""
+    f, p = float(focus_um), float(pixel_um)
+    m_prac = 1.0 + (p / f) ** 2
+    M = float(min(m_prac, 40.0)) if m_prac > 1 else 1.0
+    sod_mm = 20.0
+    g = m1_geometry(sod_mm, sod_mm * (M - 1.0), p, n_cols, 1, n_angles, 180.0)
+    p_eff = g['p_eff_mm']
+    ang = np.linspace(0.0, 180.0, int(n_angles), endpoint=False)
+    ell = slit_phantom(max(p_eff / 6.0, 1e-4))
+    acq = acquire_k_frames(ell, ang, n_cols, p_eff, K=K, scale_mm=1.0,
+                           mu_scale=1.0, n_sub=16)
+    clean = apply_focus_blur(assemble_dense(acq), acq['p_dense_mm'], f, M)
+    from skimage.transform import iradon
+
+    def noise_at(n0):
+        # 与 dose_resolution_curve 同法：两次独立实现求差，隔离纯噪声
+        a1 = iradon(add_poisson_noise(clean, float(n0), seed=int(seed)).T,
+                    theta=ang, filter_name='ramp', circle=True,
+                    preserve_range=True).astype(np.float64)
+        a2 = iradon(add_poisson_noise(clean, float(n0), seed=int(seed) + 1).T,
+                    theta=ang, filter_name='ramp', circle=True,
+                    preserve_range=True).astype(np.float64)
+        return float(np.std(a1 - a2) / np.sqrt(2.0))
+
+    a, b = float(lo), float(hi)
+    for _ in range(int(iters)):
+        mid = np.sqrt(a * b)                     # 对数二分
+        if noise_at(mid) > target_noise:
+            a = mid
+        else:
+            b = mid
+    return float(np.sqrt(a * b))
+
+
+def validate_m6(focus_um=3.0, pixel_um=55.0, K_list=(1, 2, 4), n_cols=256,
+                n_angles=180, seed=0):
+    """手册 §8 M6 验收（**部分通过**，见下）。
+
+    判据 1（已通过）：量子噪声服从 1/√N —— 用两次独立噪声实现求差隔离纯噪声，
+        噪声×√N 在四个数量级上恒定（实测 0.0411，三位有效数字）。
+
+    判据 2（**与手册不符**）：手册 §5 称达到同一分辨率所需剂量按 N³~N⁴ 标度。
+        实测"达到同一噪声所需光子数"与 K **无关**：K=1/2/4 分别为
+        9973 / 9960 / 9975，拟合指数 ≈ 0。
+
+        原因（需与手册作者核对口径）：
+          * K 帧采集本身就是 K 倍帧数 = K 倍剂量，这一份已经体现在帧数里；
+          * 每体素噪声由总光子数与投影数决定，`iradon` 的 ramp 归一化随栅距
+            补偿掉了栅格细化的影响，故额外幂律为 0。
+        手册的 N³~N⁴ 可能另有口径（例如按 3D 体素总数计、或要求每个**分辨率
+        单元**的 SNR 相同），本模型未复现 —— 在澄清之前不应把该标度当作已验结论。
+
+    另：分辨率-剂量曲线目前**不可用** —— MTF-10 指标在噪图上会误判（高剂量处
+        给出 0.713 µm，比光学极限 1.237 µm 还好，物理上不可能）。要得到可靠的
+        分辨率-剂量曲线，需要换成对噪声稳健的判据（如分辨率单元上的 SNR 或
+        任务型可探测性指标）。
+    """
+    ph = [1e4, 1e5, 1e6]
+    c = dose_resolution_curve(focus_um, pixel_um, K_list[-1], ph, n_cols, n_angles,
+                              seed=seed)
+    qn = np.asarray(c['noise'], dtype=float)
+    npn = np.asarray(c['photons'], dtype=float)
+    prod = qn * np.sqrt(npn)
+    spread = float(np.max(prod) / max(np.min(prod), 1e-30))
+    ok1 = bool(spread < 1.05)                    # 1/√N 律成立
+
+    target = float(qn[0])
+    dose = {}
+    for K in K_list:
+        dose[K] = _dose_for_noise(focus_um, pixel_um, K, target, n_cols, n_angles,
+                                  seed=seed)
+    ks = [k for k in K_list if k > 1]
+    alpha = None
+    if ks:
+        xs = np.log(np.asarray(ks, dtype=float))
+        ys = np.log(np.asarray([dose[k] / dose[1] for k in ks], dtype=float))
+        alpha = float(np.sum(xs * ys) / np.sum(xs * xs))
+    ok2 = bool(alpha is not None and 3.0 <= alpha <= 4.0)
+
+    return {
+        'noise_x_sqrtN': prod.tolist(),
+        'noise_law_spread': spread,
+        'dose_for_target_noise': {k: dose[k] for k in K_list},
+        'target_noise': target,
+        'scaling_exponent': alpha,
+        'scaling_band_manual': [3.0, 4.0],
+        'crit1_inverse_sqrtN': ok1,
+        'crit2_manual_scaling': ok2,
+        'passed': bool(ok1 and ok2),
+        'note': '判据 2 与手册 §5 不符：实测指数 ≈ 0，非 3~4。需核对口径。',
+    }
+
+
 def validate_m1(name='cylinder', n_grid=1024, n_cols=256, pixel_um=55.0,
                 sod_mm=100.0, odd_mm=300.0, n_angles=90, sample_mm=10.0,
                 mu_scale=0.02, aa=2):
