@@ -2880,8 +2880,142 @@ class MainWindow(CMainWindow):
     # ------------------------------------------------------------------
     # 3D 几何刷新：按当前参数重建球管/锥束/探测器/球壳等明细网格
     # ------------------------------------------------------------------
+
+    # ------------------------------------------------------------------
+    # 同步辐射专属三维场景（断轴压缩：源 30 m 与样品 0.3 m 同框）
+    # ------------------------------------------------------------------
+    def _sync_scene_cache(self):
+        """懒创建同步辐射专属 items；首次调用时记录需隐藏的机架 items。"""
+        if not hasattr(self, '_sync_cache'):
+            self._sync_gantry = (list(self.items.values())
+                                 + list(self.scene_labels.values())
+                                 + list(self.text_items.values()))
+
+            def line(color, width=1.6):
+                it = gl.GLLinePlotItem(color=color, width=width, mode='lines', antialias=True)
+                self.view.addItem(it)
+                return it
+
+            def mesh(color, edges=False, glopts='translucent'):
+                it = gl.GLMeshItem(shader='balloon', smooth=True, color=color,
+                                   glOptions=glopts, drawEdges=edges,
+                                   edgeColor=(0.24, 0.34, 0.44, 0.60))
+                self.view.addItem(it)
+                return it
+
+            S = {}
+            S['beam_far'] = mesh((0.44, 0.58, 0.72, 0.50), glopts='opaque')
+            S['beam_near'] = mesh((0.44, 0.58, 0.72, 0.50), glopts='opaque')
+            S['break'] = line((0.97, 0.36, 0.30, 0.92), 2.8)
+            S['ring'] = line((0.72, 0.50, 0.95, 0.88), 1.6)
+            S['und'] = line((0.95, 0.72, 0.30, 0.88), 1.7)
+            S['mono'] = mesh((0.35, 0.56, 0.98, 0.95), edges=True, glopts='opaque')
+            S['slit'] = mesh((0.55, 0.60, 0.66, 0.95), edges=True, glopts='opaque')
+            S['stage'] = mesh((0.30, 0.42, 0.55, 0.98), edges=True, glopts='opaque')
+            S['rot'] = line((0.95, 0.72, 0.30, 0.95), 2.6)
+            S['rays'] = line((0.35, 0.56, 0.98, 0.50), 0.9)
+            S['det'] = mesh((0.35, 0.56, 0.98, 0.98), edges=True, glopts='opaque')
+            S['detgrid'] = line((0.10, 0.22, 0.38, 0.70), 0.7)
+            S['dimsod'] = line((0.35, 0.82, 0.52, 0.90), 1.4)
+            S['dimodd'] = line((0.35, 0.82, 0.52, 0.90), 1.4)
+            SL = {}
+            for key in ('src', 'mono', 'slit', 'stage', 'det', 'sod', 'odd', 'brk'):
+                t = gl.GLTextItem(pos=(0, 0, 0), text='', font=QFont('Segoe UI', 10),
+                                  color=(0.72, 0.84, 0.95, 1.0))
+                self.view.addItem(t)
+                SL[key] = t
+            self._sync_cache = (S, SL)
+        return self._sync_cache
+
+    def _set_sync_visible(self, on):
+        """切换：同步辐射场景显 / 机架场景隐。"""
+        if not hasattr(self, '_sync_cache'):
+            return
+        for it in self._sync_gantry:
+            try:
+                it.setVisible(not on)
+            except Exception:
+                pass
+        S, SL = self._sync_cache
+        for it in list(S.values()) + list(SL.values()):
+            try:
+                it.setVisible(on)
+            except Exception:
+                pass
+
+    def _build_sync_scene(self, params, results):
+        """构建同步辐射束线布局：远源(断轴) → 单色器 → 狭缝 → 样品转台 → 平板探测器。"""
+        import ct_scene_sync as SC2
+        S, SL = self._sync_scene_cache()
+        self._set_sync_visible(True)
+
+        sod = float(results.get('sync_sod_mm') or params.get('sync_sod_mm', 30000.0))
+        odd = float(results.get('sync_odd_mm') or params.get('sync_odd_mm', 300.0))
+        fov = float(results.get('sync_fov_mm') or 111.0)
+        half = max(40.0, fov * 0.55)                       # 探测器半宽（随视场联动）
+
+        # 断轴显示坐标（样品在原点；源在 -X，探测器在 +X）
+        xs = -SC2.axis_break(sod, sod)                     # 源
+        xcut = -SC2.axis_break(sod - SC2.FAR_MM, sod)      # 断轴源侧起点
+        xn = -SC2.axis_break(SC2.NEAR_MM, sod)             # 断轴样品侧终点
+        xd = SC2.axis_break(odd, odd)                      # 探测器（1:1 近端）
+
+        # ---- 束线管（两段：源侧 + 样品侧）----
+        v, f, _, _ = SC2.beamline_tube(xs, xcut, 18, rib_every=90)
+        S['beam_far'].setMeshData(vertexes=v, faces=f)
+        v, f, _, _ = SC2.beamline_tube(xn, 0.0, 18, rib_every=90)
+        S['beam_near'].setMeshData(vertexes=v, faces=f)
+
+        # ---- 断轴符号 // ----
+        S['break'].setData(pos=SC.segment_list(SC2.break_marks(SC2.break_center(sod), size=80)))
+        SL['brk'].setData(pos=(SC2.break_center(sod), -150, 0),
+                          text='break  %.0f m omitted' % (sod / 1000.0))
+
+        # ---- 储存环 + 波荡器（源侧）----
+        S['ring'].setData(pos=SC.segment_list(SC2.storage_ring_symbol((xs - 200, 0, 0), r=150)))
+        S['und'].setData(pos=SC.segment_list(SC2.undulator_symbol(xs - 130, xs - 40, half=40)))
+        SL['src'].setData(pos=(xs - 200, 210, 0),
+                          text='Synchrotron source  %.1f m' % (sod / 1000.0))
+
+        # ---- 单色器 + 狭缝（样品侧）----
+        v, f = SC2.crystal_plate((-360, 0, 0), tilt_deg=0)
+        S['mono'].setMeshData(vertexes=v, faces=f)
+        SL['mono'].setData(pos=(-360, 120, 0), text='Monochromator')
+        v, f = SC2.slit_jaws((-250, 0, 0), gap=24)
+        S['slit'].setMeshData(vertexes=v, faces=f)
+        SL['slit'].setData(pos=(-250, 150, 0), text='Slits')
+
+        # ---- 样品转台 + 旋转箭头 ----
+        v, f, arrow, _ring = SC2.stage_disk((0.0, 0, 0), r=70)
+        S['stage'].setMeshData(vertexes=v, faces=f)
+        S['rot'].setData(pos=SC.segment_list(arrow))
+        SL['stage'].setData(pos=(0.0, -170, 0), text='Sample stage (rotates 360)')
+
+        # ---- 近平行束 + 平板探测器 ----
+        S['rays'].setData(pos=SC.segment_list(
+            SC2.parallel_rays(-150, xd - 14, half_span=half * 0.9, n=7)))
+        v, f, grid = SC2.flat_panel((xd, 0, 0), w=2 * half, h=2 * half * 0.82)
+        S['det'].setMeshData(vertexes=v, faces=f)
+        S['detgrid'].setData(pos=SC.segment_list(grid))
+        SL['det'].setData(pos=(xd, half + 70, 0), text='Flat detector')
+
+        # ---- 尺寸线（真实距离标注）----
+        S['dimsod'].setData(pos=SC.segment_list(
+            SC2.dimension_line((0.0, -220, 0), (xs, -220, 0))))
+        SL['sod'].setData(pos=(xs * 0.5, -250, 0), text='SOD = %.1f m' % (sod / 1000.0))
+        S['dimodd'].setData(pos=SC.segment_list(
+            SC2.dimension_line((0.0, 220, 0), (xd, 220, 0))))
+        SL['odd'].setData(pos=(xd * 0.5, 250, 0), text='ODD = %.0f mm' % odd)
+
     def update_scene(self, params, results, fan_A, fan_B, is_asymmetric):
         FDD = float(params['FDD'])
+        # ---- 同步辐射架构：专属三维场景（远源近平行束 + 样品转台 + 平板探测器）----
+        if str(results.get('arch_key', '')) == 'synchrotron':
+            self._build_sync_scene(params, results)
+            return
+        if hasattr(self, '_sync_cache'):
+            self._set_sync_visible(False)
+
         RA, RB = float(params['RA']), float(params['RB'])
         FA = np.array(results['R_A_coord'], dtype=float)
         FB = np.array(results['R_B_coord'], dtype=float)
