@@ -66,6 +66,23 @@
 并额外给出 `static_src_short / static_src_used / static_span_deg / static_ok_180`
 用于判断短扫描可用性。
 
+### 五架构三维几何
+
+> 均为当前程序自身渲染的 `SYSTEM GEOMETRY` 视口实拍（`win.grab()`）。
+> 左上角是实时参数浮层，其中 `System Load` 为机架离心力 —— 静态架构不旋转，故为 `0 N`。
+
+| 双源 Dual-Source（两套系统 α=95°） | 单源宽体 Single-Source Wide-Body |
+| :---: | :---: |
+| ![双源](docs/arch_dual_source.png) | ![单源宽体](docs/arch_single_wide.png) |
+
+| 双层能谱 Dual-Layer（2 层） | 光子计数 Photon-Counting（8 能量箱） |
+| :---: | :---: |
+| ![双层能谱](docs/arch_dual_layer.png) | ![光子计数](docs/arch_pcct.png) |
+
+**静态多源 Stationary 24-Source** —— 不旋转，24 个源/探测器模块均布整圈：
+
+![静态多源](docs/arch_static_multi.png)
+
 ---
 
 ## 快速开始
