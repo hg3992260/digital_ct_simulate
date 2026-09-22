@@ -1,4 +1,6 @@
-# 双源 CT 真实几何模拟器 · Native Edition
+# digital_ct_simulate
+
+**双源 CT 真实几何模拟器 · Native Edition（CT6）**
 
 [![windows-build](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml/badge.svg)](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml)
 
@@ -9,6 +11,10 @@
 不是"画个好看的示意图"，而是**从几何恒等式一路接到真实重建算子**的研发台：
 左边栏改一个 `alpha`，扇形角、最小间距、螺旋螺距上限、探测器阵列整数化匹配、
 剂量指数、时间分辨率会同时重算；点一下 FBP，走的是 LEAP-CT 的锥束/螺旋正投影与反投影。
+
+- **程序入口**：`src/simulate_ct6.py`（界面标题：双源 CT 真实几何模拟器 · Native Edition）
+- **Windows 产物**：`DSW_CT.exe` —— 取自 GitHub Actions 的 `DSW_CT_Windows` artifact
+- **Agent 入口**：`src/ct6_mcp_server.py`（MCP stdio）+ `src/ct6_bridge.py`（应用内 TCP 控制桥）
 
 ---
 
