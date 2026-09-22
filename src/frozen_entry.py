@@ -74,7 +74,7 @@ _SELFTEST_MODULES = [
     'PySide6.QtWidgets', 'PyCt6',
     'leapctype', 'xraylib',
     'ct_geometry', 'ct_leap', 'ct_scene', 'ct_helical', 'ct_index',
-    'ct_fermi', 'ct_spectral', 'ct6_bridge',
+    'ct_fermi', 'ct_spectral', 'ct_synchrotron', 'ct6_bridge',
 ]
 
 
@@ -113,6 +113,28 @@ def _selftest():
         ok = False
         report['leap_engine'] = '%s: %s' % (type(exc).__name__, exc)
         report['failures']['leap_engine'] = traceback.format_exc()
+
+    # 同步辐射仿真模式：真的跑一遍几何内核的第 6 种架构，确认 ct_synchrotron
+    # 被打进了产物且公式链可算（只 import 不调用是查不出漏打包的）
+    try:
+        import ct_geometry as CG
+        _r, _fa, _fb = CG.calculate_geometry(
+            alpha=95.0, RA=200.0, RB=200.0, FDD=800.0, SFOV_A=100.0, SFOV_B=100.0,
+            Z_coverage=30.0, rotation_time=1.0, arch='synchrotron')
+        keys = [k for k in _r if k.startswith('sync_')]
+        report['synchrotron'] = {
+            'arch_label': _r.get('arch_label'),
+            'derived_keys': len(keys),
+            'M': _r.get('sync_M'), 'r_star_um': _r.get('sync_r_star_um'),
+            'M_star': _r.get('sync_M_star'),
+        }
+        if len(keys) < 60:
+            ok = False
+            report['failures']['synchrotron'] = 'expected 60+ sync_* keys, got %d' % len(keys)
+    except Exception as exc:
+        ok = False
+        report['synchrotron'] = '%s: %s' % (type(exc).__name__, exc)
+        report['failures']['synchrotron'] = traceback.format_exc()
 
     report['ok'] = ok
     out = os.environ.get('DSW_CT_SELFTEST_OUT')
