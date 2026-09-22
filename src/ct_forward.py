@@ -117,20 +117,177 @@ def ellipse_chord(s, a, b, theta_deg):
     return out
 
 
+def analytic_projection(ellipses, s_mm, angle_deg, scale_mm, mu_scale=1.0):
+    """在**任意**样品面坐标 s 上求解析线积分（连续函数，可任意采样）。
+
+    M4 需要在亚像素偏移处取值，所以必须能把 s 当连续变量用 —— 这也是
+    解析路径比数值路径更适合做 M4 基准的原因。
+    """
+    th = np.deg2rad(float(angle_deg))
+    nx, ny = -np.sin(th), np.cos(th)
+    s = np.asarray(s_mm, dtype=float)
+    acc = np.zeros_like(s)
+    for A, x0, y0, a, b, phi in ellipses:
+        s0 = (x0 * scale_mm) * nx + (y0 * scale_mm) * ny
+        acc += A * ellipse_chord(s - s0, a * scale_mm, b * scale_mm, angle_deg - phi)
+    return acc * mu_scale
+
+
 def analytic_sinogram(ellipses, n_cols, p_eff_mm, angles_deg, scale_mm, mu_scale=1.0):
     """解析正弦图，形状 (n_angles, n_cols)。线积分可加 → 逐椭圆叠加。"""
     s = (np.arange(n_cols) - (n_cols - 1) / 2.0) * p_eff_mm
     out = np.zeros((len(angles_deg), n_cols), dtype=np.float64)
     for i, th_deg in enumerate(angles_deg):
-        th = np.deg2rad(float(th_deg))
-        nx, ny = -np.sin(th), np.cos(th)
-        acc = np.zeros(n_cols, dtype=np.float64)
-        for A, x0, y0, a, b, phi in ellipses:
-            s0 = (x0 * scale_mm) * nx + (y0 * scale_mm) * ny
-            # 射线方向在椭圆主轴系里的角度 = 探测角 − 椭圆倾角
-            acc += A * ellipse_chord(s - s0, a * scale_mm, b * scale_mm, th_deg - phi)
-        out[i] = acc * mu_scale
+        out[i] = analytic_projection(ellipses, s, th_deg, scale_mm, mu_scale)
     return out
+
+
+# ===========================================================================
+# M4 · K 帧亚像素过采样采集
+#
+# 手册 §8 M4：
+#   * 输入：K、位移模式 δ_k、位移误差 σ_δ
+#   * 输出：K 帧投影栈
+#   * 验收：K=1/2/4 的 MTF 与理论 min(f_N(K), f₀) 一致；
+#           K=2 与 K=4 的 MTF 差异落在噪声内（验证 §4.1 的饱和结论）
+#
+# 物理链条（M4 的真实含义）：
+#   连续线积分 L(s) → 像素孔径平均（宽度 p_eff）→ 在 p_eff 栅格上采样（带 δ_k 偏移）
+# K 帧拼起来后，合成采样栅格间距才是 p_eff/K，可表达的频带上限随之提高；
+# 但**孔径 MTF 的首零点 f₀ = 1/p_eff 是天花板**，过采样越不过它。
+# ===========================================================================
+
+def pixel_average(ellipses, s_centers, angle_deg, p_eff_mm, scale_mm,
+                  mu_scale=1.0, n_sub=16):
+    """探测器像素的孔径平均：把 L(s) 在 [s−p/2, s+p/2] 窗内积分再除以窗宽。"""
+    node = (np.arange(int(n_sub)) + 0.5) / float(n_sub) - 0.5    # [-0.5, 0.5)
+    s = np.asarray(s_centers, dtype=float)[:, None] + node[None, :] * p_eff_mm
+    L = analytic_projection(ellipses, s.ravel(), angle_deg, scale_mm, mu_scale)
+    return L.reshape(s.shape).mean(axis=1)
+
+
+def subpixel_offsets(K, pattern='linear', jitter_frac=0.0, seed=0):
+    """子像素位移模式 δ_k（单位：p_eff）。
+
+    * linear   : δ_k = k/K —— 把单帧栅格均匀细分 K 倍（M4 的标准模式）
+    * centered : δ_k = (k − (K−1)/2)/K —— 以中心对齐
+    * jitter_frac > 0 时叠加 σ_δ = jitter_frac·p_eff 的随机误差
+    """
+    K = max(1, int(K))
+    if str(pattern) == 'centered':
+        off = (np.arange(K, dtype=float) - (K - 1) / 2.0) / K
+    else:
+        off = np.arange(K, dtype=float) / K
+    if jitter_frac:
+        rng = np.random.default_rng(int(seed))
+        off = off + rng.normal(0.0, float(jitter_frac), size=K)
+    return off
+
+
+def acquire_k_frames(ellipses, angles_deg, n_cols, p_eff_mm, K=4, scale_mm=1.0,
+                     mu_scale=1.0, n_sub=16, pattern='linear', jitter_frac=0.0, seed=0):
+    """M4：生成 K 帧亚像素位移投影栈。
+
+    返回 dict：
+      frames     (K, n_ang, n_cols)  各帧实际测量值（含孔径平均）
+      offsets    (K,)                各帧位移 δ_k（单位 p_eff）
+      positions  (K, n_cols)         各帧采样点在样品面的坐标（mm）
+      p_eff_mm / p_dense_mm          单帧栅距 / 合成栅距
+      f0 / f_nyq_K / f_eff          孔径零点 / K 帧 Nyquist / 有效上限
+    """
+    K = max(1, int(K))
+    n_ang = len(angles_deg)
+    off = subpixel_offsets(K, pattern, jitter_frac, seed)
+    base = (np.arange(n_cols) - (n_cols - 1) / 2.0) * p_eff_mm
+
+    frames = np.zeros((K, n_ang, n_cols), dtype=np.float64)
+    positions = np.zeros((K, n_cols), dtype=np.float64)
+    for k in range(K):
+        sk = base + off[k] * p_eff_mm
+        positions[k] = sk
+        for i, th in enumerate(angles_deg):
+            frames[k, i] = pixel_average(ellipses, sk, th, p_eff_mm, scale_mm,
+                                         mu_scale, n_sub)
+
+    f0 = 1.0 / p_eff_mm
+    f_nyq_K = K / (2.0 * p_eff_mm)
+    return {
+        'frames': frames,
+        'offsets': off,
+        'positions': positions,
+        'n_cols': int(n_cols), 'n_angles': int(n_ang), 'K': int(K),
+        'p_eff_mm': float(p_eff_mm), 'p_dense_mm': float(p_eff_mm / K),
+        'f0_cyc_mm': float(f0),
+        'f_nyq_K': float(f_nyq_K),
+        'f_eff_cyc_mm': float(min(f_nyq_K, f0)),
+        'uniform': bool(jitter_frac == 0.0),
+        'jitter_frac': float(jitter_frac),
+    }
+
+
+def _fft_upsample(y, factor):
+    """FFT 零填充上采样（等价 sinc 插值，插值核传递函数恒为 1）。
+
+    不能用三次样条：样条自身有通带下垂，会把"实测传递"污染成
+    "孔径 × 样条核"，导致测出的偏离点与采样上限无关。
+    """
+    y = np.asarray(y, dtype=float)
+    n = len(y)
+    m = n * int(factor)
+    Y = np.fft.fftshift(np.fft.fft(y))
+    Z = np.zeros(m, dtype=complex)
+    c, cm = n // 2, m // 2
+    Z[cm - c: cm + c] = Y[:2 * c]
+    return np.real(np.fft.ifft(np.fft.ifftshift(Z))) * float(factor)
+
+
+def measure_acquisition_mtf(ellipses, angles_deg, n_cols, p_eff_mm, K, scale_mm=1.0,
+                            mu_scale=1.0, fine=32, n_sub=16, jitter_frac=0.0, seed=0):
+    """测出 K 帧采集的等效 MTF。
+
+    线性位移模式下 K 帧样本拼起来是**均匀栅格**（间距 p_eff/K），
+    因此可以用 FFT 零填充抬到统一细网格（间距 p_eff/fine），
+    再与同网格上的解析理想值比频谱 → 干净的"孔径 × 采样"传递函数：
+
+      * K=1：样本只在 p_eff 栅格上 → 只能承载到 f_N(1)=f₀/2，之上被截断
+      * K=2：合成栅距 p_eff/2 → 可到 f₀（被孔径卡住）
+      * K=4：合成栅距 p_eff/4 → 上限仍是 f₀ → 与 K=2 应当无差别
+    """
+    acq = acquire_k_frames(ellipses, angles_deg, n_cols, p_eff_mm, K=K, scale_mm=scale_mm,
+                           mu_scale=mu_scale, n_sub=n_sub, jitter_frac=jitter_frac, seed=seed)
+    n_ang = len(angles_deg)
+    dense = np.zeros((n_ang, K * n_cols), dtype=np.float64)
+    for k in range(K):
+        dense[:, k::K] = acq['frames'][k]
+
+    up = max(1, int(round(float(fine) / K)))
+    m = K * n_cols * up
+    p_fine = p_eff_mm / float(K * up)
+    m0 = K * (n_cols - 1) / 2.0
+    idx = np.arange(m, dtype=float) / float(up) - m0
+    s_fine = idx * (p_eff_mm / K)
+
+    win = np.hanning(m)
+    num = np.zeros(m // 2, dtype=np.float64)
+    den = np.zeros(m // 2, dtype=np.float64)
+    for i, th in enumerate(angles_deg):
+        prof = _fft_upsample(dense[i], up)
+        ideal = analytic_projection(ellipses, s_fine, th, scale_mm, mu_scale)
+        num += np.abs(np.fft.rfft((prof - prof.mean()) * win))[:m // 2]
+        den += np.abs(np.fft.rfft((ideal - ideal.mean()) * win))[:m // 2]
+    mtf = num / np.maximum(den, 1e-30)
+    if mtf.size and mtf[0] > 0:
+        mtf = mtf / mtf[0]
+
+    nu = np.fft.rfftfreq(m, d=p_fine)[:m // 2]
+    return {
+        'K': int(K), 'nu_cyc_mm': nu, 'mtf': mtf,
+        'f0_cyc_mm': float(acq['f0_cyc_mm']),
+        'f_nyq_K': float(acq['f_nyq_K']),
+        'f_theory_cyc_mm': float(min(acq['f_nyq_K'], acq['f0_cyc_mm'])),
+        'p_fine_mm': float(p_fine), 'n_fine': int(m),
+        'acq': acq,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +397,146 @@ def m1_geometry(sod_mm, odd_mm, pixel_um, n_cols, n_rows=1, n_angles=180,
 # ---------------------------------------------------------------------------
 # 验收
 # ---------------------------------------------------------------------------
+def aperture_transfer(nu_cyc_mm, p_eff_mm):
+    """像素孔径的理论传递函数 |sinc(π·p·ν)|。"""
+    x = np.pi * float(p_eff_mm) * np.asarray(nu_cyc_mm, dtype=float)
+    return np.abs(np.sinc(x / np.pi))
+
+
+def slit_phantom(half_width, height=0.8, A=1.0):
+    """狭缝体模：一条竖直窄条。
+
+    为什么 M4 的 MTF 要用狭缝而不是圆柱：圆柱的投影 2√(R²−s²) 的频谱是
+    Bessel J₁，**本身带零点**；拿它做归一化分母会在零点附近爆掉（实测出现过
+    1e3 量级的假差异）。狭缝的投影近似 δ 函数、频谱平坦，是标准 MTF 体模
+    （slit method）。窄条半宽取远小于 p_eff，使理想谱在本频段内无零点。
+    """
+    return [(A, 0.0, 0.0, float(half_width), float(height), 0.0)]
+
+
+def bandlimited_profile(sigma_mm):
+    """构造一个**严格带限**的物体投影 L(s)（高斯），用于 M4 判据 2。
+
+    为什么判据 2 必须用带限物体：K=2 的采样 Nyquist 恰为 f₀。若物体在 f₀ 以上
+    仍有能量（锐边体模总是如此），那部分会在 K=2 处混叠回带内，使 K=2 与 K=4
+    出现真实差异 —— 实测宽带狭缝下差 0.139，而严格带限物体下差 0.000000。
+    手册 §4.1 的饱和结论本身就带前提"孔径为唯一模糊源"，即物体无 f₀ 以上内容。
+    """
+    sg = float(sigma_mm)
+    return lambda s: np.exp(-0.5 * (np.asarray(s, dtype=float) / sg) ** 2)
+
+
+def acquire_from_profile(L_fn, n_cols, p_eff_mm, K=4, pattern='linear',
+                         n_sub=16, jitter_frac=0.0, seed=0):
+    """按给定连续投影 L(s) 生成 K 帧（不依赖角度，用于带限物体的判据 2）。"""
+    K = max(1, int(K))
+    off = subpixel_offsets(K, pattern, jitter_frac, seed)
+    base = (np.arange(n_cols) - (n_cols - 1) / 2.0) * p_eff_mm
+    node = (np.arange(int(n_sub)) + 0.5) / float(n_sub) - 0.5
+    frames = np.zeros((K, n_cols), dtype=np.float64)
+    for k in range(K):
+        s = (base + off[k] * p_eff_mm)[:, None] + node[None, :] * p_eff_mm
+        frames[k] = L_fn(s.ravel()).reshape(s.shape).mean(axis=1)
+    return {'frames': frames, 'offsets': off, 'K': K,
+            'p_eff_mm': float(p_eff_mm), 'p_dense_mm': float(p_eff_mm / K),
+            'f0_cyc_mm': float(1.0 / p_eff_mm),
+            'f_nyq_K': float(K / (2.0 * p_eff_mm)),
+            'f_eff_cyc_mm': float(min(K / (2.0 * p_eff_mm), 1.0 / p_eff_mm))}
+
+
+def measure_profile_mtf(L_fn, n_cols, p_eff_mm, K, fine=32, n_sub=16):
+    """带限物体的采集传递函数（与 measure_acquisition_mtf 同法，单角度）。"""
+    acq = acquire_from_profile(L_fn, n_cols, p_eff_mm, K=K, n_sub=n_sub)
+    dense = np.zeros(K * n_cols)
+    for k in range(K):
+        dense[k::K] = acq['frames'][k]
+    up = max(1, int(round(float(fine) / K)))
+    m = K * n_cols * up
+    p_fine = p_eff_mm / float(K * up)
+    m0 = K * (n_cols - 1) / 2.0
+    s_fine = (np.arange(m, dtype=float) / float(up) - m0) * (p_eff_mm / K)
+    win = np.hanning(m)
+    prof = _fft_upsample(dense, up)
+    ideal = L_fn(s_fine)
+    num = np.abs(np.fft.rfft((prof - prof.mean()) * win))[:m // 2]
+    den = np.abs(np.fft.rfft((ideal - ideal.mean()) * win))[:m // 2]
+    mtf = num / np.maximum(den, 1e-30)
+    if mtf[0] > 0:
+        mtf = mtf / mtf[0]
+    return np.fft.rfftfreq(m, d=p_fine)[:m // 2], mtf
+
+
+def validate_m4(name='slit', n_cols=256, pixel_um=55.0, sod_mm=100.0, odd_mm=300.0,
+                n_angles=16, Ks=(1, 2, 4), fine=32, n_sub=16, tol_band=0.15,
+                tol_sat=0.02):
+    """手册 §8 M4 验收。
+
+    判据 1（宽带狭缝体模）：实测**主瓣零点**应等于 min(f_N(K), f₀)
+         —— K=1 → f₀/2；K≥2 → f₀（孔径零点才是天花板）
+    判据 2（**严格带限**物体）：K=2 与 K=4 的 MTF 在 f₀ 以内应无差别
+         —— 验证 §4.1「K=2 已饱和」
+
+    判据 2 必须用带限物体。宽带锐边体模会让孔径在 f₀ 以上的残余传递混叠回带内
+    （K=2 的 Nyquist 恰为 f₀），产生约 0.14 的**真实**差异 —— 那是采样混叠，
+    不是"K=2 未饱和"。两者的区别本模块会分别报告。
+    """
+    n_ang = int(n_angles)
+    ang = np.linspace(0.0, 180.0, n_ang, endpoint=False)
+    g = m1_geometry(sod_mm, odd_mm, pixel_um, n_cols, 1, n_ang, 180.0)
+    p_eff = g['p_eff_mm']
+    ell = slit_phantom(p_eff / 8.0)
+
+    out, mtfs = {}, {}
+    for K in Ks:
+        r = measure_acquisition_mtf(ell, ang, n_cols, p_eff, K, scale_mm=1.0,
+                                    mu_scale=1.0, fine=fine, n_sub=n_sub)
+        nu, meas = r['nu_cyc_mm'], r['mtf']
+        f_eff = float(min(r['f_nyq_K'], r['f0_cyc_mm']))
+        theo = aperture_transfer(nu, p_eff)
+        below = np.nonzero(meas < 0.05)[0]
+        f_null = float(nu[below[0]]) if len(below) else float(nu[-1])
+        band = nu <= 0.90 * f_eff
+        out[K] = {
+            'f_meas_null_cyc_mm': f_null,
+            'f_theory_cyc_mm': f_eff,
+            'f0_cyc_mm': float(r['f0_cyc_mm']),
+            'f_nyq_K': float(r['f_nyq_K']),
+            'err_inband_max': float(np.max(np.abs(meas[band] - theo[band])))
+            if band.any() else 0.0,
+        }
+        mtfs[K] = meas
+
+    ok1 = all(abs(out[K]['f_meas_null_cyc_mm'] - out[K]['f_theory_cyc_mm'])
+              <= tol_band * out[K]['f_theory_cyc_mm'] for K in Ks)
+
+    # 判据 2：带限物体上比较 K=2 与 K=4
+    f0 = out[Ks[0]]['f0_cyc_mm']
+    L_fn = bandlimited_profile(1.0 / (2.0 * np.pi * (f0 / 4.0)))
+    nu_b, m2 = measure_profile_mtf(L_fn, n_cols, p_eff, 2, fine=fine, n_sub=n_sub)
+    _, m4 = measure_profile_mtf(L_fn, n_cols, p_eff, 4, fine=fine, n_sub=n_sub)
+    n_min = min(len(m2), len(m4))
+    band = nu_b[:n_min] <= f0
+    diff_bl = float(np.max(np.abs(m2[:n_min][band] - m4[:n_min][band])))
+
+    # 附：宽带物体下同一比较（预期显著更大 —— 这是混叠，不是未饱和）
+    diff_bb = None
+    if 2 in mtfs and 4 in mtfs:
+        n2 = min(len(mtfs[2]), len(mtfs[4]))
+        bb = nu_b[:n2] <= f0 if len(nu_b) >= n2 else np.ones(n2, bool)
+        diff_bb = float(np.max(np.abs(mtfs[2][:n2][bb] - mtfs[4][:n2][bb])))
+
+    ok2 = bool(diff_bl < tol_sat)
+    return {
+        'phantom': str(name), 'geometry': g, 'K_list': list(Ks),
+        'per_K': out,
+        'crit1_band_matches': bool(ok1),
+        'crit2_saturated_bandlimited': bool(ok2),
+        'k2_vs_k4_bandlimited': diff_bl,
+        'k2_vs_k4_broadband': diff_bb,
+        'passed': bool(ok1 and ok2),
+    }
+
+
 def validate_m1(name='cylinder', n_grid=1024, n_cols=256, pixel_um=55.0,
                 sod_mm=100.0, odd_mm=300.0, n_angles=90, sample_mm=10.0,
                 mu_scale=0.02, aa=2):
