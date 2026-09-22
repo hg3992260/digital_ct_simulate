@@ -2915,13 +2915,22 @@ class MainWindow(CMainWindow):
             S['rot'] = line((0.95, 0.72, 0.30, 0.95), 2.6)
             S['rays'] = line((0.35, 0.56, 0.98, 0.50), 0.9)
             S['det'] = mesh((0.35, 0.56, 0.98, 0.98), edges=True, glopts='opaque')
+            S['src_mark'] = gl.GLScatterPlotItem(size=24, pxMode=False,
+                                                 color=(1.0, 0.45, 0.20, 1.0))
+            self.view.addItem(S['src_mark'])
+            S['sample_mark'] = gl.GLScatterPlotItem(size=18, pxMode=False,
+                                                    color=(0.30, 1.0, 0.55, 1.0))
+            self.view.addItem(S['sample_mark'])
+            S['sample_sphere'] = mesh((0.35, 0.85, 0.45, 0.92), glopts='translucent')
             S['detgrid'] = line((0.10, 0.22, 0.38, 0.70), 0.7)
             S['dimsod'] = line((0.35, 0.82, 0.52, 0.90), 1.4)
             S['dimodd'] = line((0.35, 0.82, 0.52, 0.90), 1.4)
             SL = {}
+            _LC = {'src': (1.0, 0.60, 0.30, 1.0), 'det': (0.40, 0.65, 1.0, 1.0),
+                   'stage': (0.30, 1.0, 0.55, 1.0)}
             for key in ('src', 'mono', 'slit', 'stage', 'det', 'sod', 'odd', 'brk'):
-                t = gl.GLTextItem(pos=(0, 0, 0), text='', font=QFont('Segoe UI', 10),
-                                  color=(0.72, 0.84, 0.95, 1.0))
+                t = gl.GLTextItem(pos=(0, 0, 0), text='', font=QFont('Segoe UI', 12),
+                                  color=_LC.get(key, (0.72, 0.84, 0.95, 1.0)))
                 self.view.addItem(t)
                 SL[key] = t
             self._sync_cache = (S, SL)
@@ -2974,8 +2983,9 @@ class MainWindow(CMainWindow):
         # ---- 储存环 + 波荡器（源侧）----
         S['ring'].setData(pos=SC.segment_list(SC2.storage_ring_symbol((xs - 200, 0, 0), r=150)))
         S['und'].setData(pos=SC.segment_list(SC2.undulator_symbol(xs - 130, xs - 40, half=40)))
-        SL['src'].setData(pos=(xs - 200, 210, 0),
-                          text='Synchrotron source  %.1f m' % (sod / 1000.0))
+        S['src_mark'].setData(pos=np.array([[xs - 85, 0.0, 0.0]]))
+        SL['src'].setData(pos=(xs - 200, 215, 0),
+                          text='射线源 Synchrotron source  %.1f m' % (sod / 1000.0))
 
         # ---- 单色器 + 狭缝（样品侧）----
         v, f = SC2.crystal_plate((-360, 0, 0), tilt_deg=0)
@@ -2989,7 +2999,10 @@ class MainWindow(CMainWindow):
         v, f, arrow, _ring = SC2.stage_disk((0.0, 0, 0), r=70)
         S['stage'].setMeshData(vertexes=v, faces=f)
         S['rot'].setData(pos=SC.segment_list(arrow))
-        SL['stage'].setData(pos=(0.0, -170, 0), text='Sample stage (rotates 360)')
+        S['sample_mark'].setData(pos=np.array([[0.0, 0.0, 0.0]]))
+        v, f = SC2.sphere((0.0, 0.0, 55.0), 34.0)
+        S['sample_sphere'].setMeshData(vertexes=v, faces=f)
+        SL['stage'].setData(pos=(0.0, -175, 0), text='样本 Sample (rotates 360)')
 
         # ---- 近平行束 + 平板探测器 ----
         S['rays'].setData(pos=SC.segment_list(
@@ -2997,7 +3010,7 @@ class MainWindow(CMainWindow):
         v, f, grid = SC2.flat_panel((xd, 0, 0), w=2 * half, h=2 * half * 0.82)
         S['det'].setMeshData(vertexes=v, faces=f)
         S['detgrid'].setData(pos=SC.segment_list(grid))
-        SL['det'].setData(pos=(xd, half + 70, 0), text='Flat detector')
+        SL['det'].setData(pos=(xd, half + 75, 0), text='探测器 Flat detector')
 
         # ---- 尺寸线（真实距离标注）----
         S['dimsod'].setData(pos=SC.segment_list(

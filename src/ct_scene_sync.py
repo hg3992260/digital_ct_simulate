@@ -269,3 +269,26 @@ def dimension_line(p0, p1, text_z=0.0, ticks=26.0):
     for p in (p0, p1):
         out.append(np.array([[p[0], p[1] - ticks, p[2]], [p[0], p[1] + ticks, p[2]]]))
     return out
+
+
+def sphere(center, r, n_lat=24, n_lon=36):
+    """UV 球（用于标记样本位置）。返回 (v,f)。"""
+    c = np.asarray(center, float)
+    lat = np.linspace(0, np.pi, n_lat)
+    lon = np.linspace(0, 2 * np.pi, n_lon, endpoint=False)
+    V = np.empty((0, 3))
+    for th in lat:
+        ring = np.stack([c[0] + r * np.sin(th) * np.cos(lon),
+                         c[1] + r * np.sin(th) * np.sin(lon),
+                         np.full_like(lon, c[2] + r * np.cos(th))], axis=1)
+        V = np.vstack([V, ring])
+    F = []
+    for i in range(n_lat - 1):
+        for j in range(n_lon):
+            jj = (j + 1) % n_lon
+            a = i * n_lon + j
+            b = i * n_lon + jj
+            cc = (i + 1) * n_lon + j
+            dd = (i + 1) * n_lon + jj
+            F += [[a, b, dd], [a, dd, cc]]
+    return V.astype(np.float32), np.asarray(F, dtype=np.uint32).reshape(-1, 3)
