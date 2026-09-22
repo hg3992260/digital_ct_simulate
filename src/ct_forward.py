@@ -1092,7 +1092,139 @@ def validate_m6(focus_um=3.0, pixel_um=55.0, K_list=(1, 2, 4), n_cols=256,
     }
 
 
+# ===========================================================================
+# 相衬路径（把 M1/M4/M5 从"衰减体模"扩展到"相位体模"）
+#
+# 为什么必须做：细胞层面成像的真正瓶颈不是分辨率而是**对比度**。
+# 脑细胞与周围神经毡含水率几乎相同，衰减差 <1 HU —— 即使做到 15 µm，
+# 衰减像上也看不见细胞。而折射率减量 δ 在细胞膜、髓鞘这类**边界**上跳变，
+# 且相衬把"面积对比"转成"边缘对比"（TIE 里的 ∇² 算子），
+# 所以相衬是唯一能让细胞边界显形的机制。
+#
+# 物理链条（与衰减链并行，共用同一套几何与椭圆弦长）：
+#   δ(x,y) → 相位投影 φ(θ,s) = −(2π/λ)·∫δ dl
+#          → TIE 传播 I/I₀ = exp(−A)·[1 − (λR/2π)·∂²φ/∂s²]
+#          → 取 p = −ln(I/I₀) ≈ A + (λR/2π)·∂²φ/∂s²   （边缘增强）
+#          → 与衰减链完全相同的 M4 采集 + M5 重建
+# ===========================================================================
+
+def wavelength_mm(energy_kev):
+    """光子波长 (mm)：λ = 1.23984e-6 / E[keV]。"""
+    return 1.23984e-6 / max(float(energy_kev), 1e-9)
+
+
+def phase_sinogram(delta_ellipses, angles_deg, n_cols, p_eff_mm, scale_mm,
+                   energy_kev, delta_scale=1.0):
+    """相位投影 φ(θ,s) = −(2π/λ)·∫δ dl。
+
+    复用解析弦长：把 δ 当作椭圆表的 A 值即可得到 ∫δ dl。
+    """
+    ifl = analytic_sinogram(delta_ellipses, n_cols, p_eff_mm, angles_deg,
+                            scale_mm, mu_scale=float(delta_scale))
+    return -(2.0 * np.pi / wavelength_mm(energy_kev)) * ifl
+
+
+def tie_propagate(abs_sino, phi_sino, energy_kev, distance_mm, p_eff_mm,
+                  clip=0.9):
+    """TIE 传播，返回探测器相对强度 I/I₀。
+
+        I/I₀ = exp(−A)·[1 − (λR/2π)·∂²φ/∂s²]
+
+    其中 ∂²/∂s² 沿**探测方向**（每个投影角各算一次）。这是相衬投影的
+    标准一维处理，边缘处 ∇²φ 很大 → 亮暗条纹 → 边界显形。
+    """
+    A = np.asarray(abs_sino, dtype=float)
+    phi = np.asarray(phi_sino, dtype=float)
+    ds = float(p_eff_mm)
+    # 二阶中心差分
+    d2 = np.zeros_like(phi)
+    d2[:, 1:-1] = (phi[:, 2:] - 2.0 * phi[:, 1:-1] + phi[:, :-2]) / (ds ** 2)
+    d2[:, 0] = d2[:, 1]
+    d2[:, -1] = d2[:, -2]
+    mod = 1.0 - (wavelength_mm(energy_kev) * float(distance_mm) / (2.0 * np.pi)) * d2
+    mod = np.clip(mod, 0.0, None)
+    return np.exp(-np.clip(A, 0.0, None)) * mod
+
+
+def phase_contrast_sinogram(abs_ellipses, delta_ellipses, angles_deg, n_cols,
+                            p_eff_mm, scale_mm, energy_kev, distance_mm,
+                            abs_scale=1.0, delta_scale=1.0):
+    """返回 (纯吸收正弦图 A, 相衬等效正弦图 p = −ln(I/I₀))。
+
+    p 可直接喂给 M4/M5 的既有采集与重建链，无需任何改动 —— 相衬路径
+    与衰减路径在重建层是同构的。
+    """
+    A = analytic_sinogram(abs_ellipses, n_cols, p_eff_mm, angles_deg, scale_mm,
+                          mu_scale=abs_scale)
+    phi = phase_sinogram(delta_ellipses, angles_deg, n_cols, p_eff_mm, scale_mm,
+                         energy_kev, delta_scale)
+    inten = tie_propagate(A, phi, energy_kev, distance_mm, p_eff_mm)
+    return A, -np.log(np.maximum(inten, 1e-12))
+
+
+def paganin_retrieve(apparent_abs, p_eff_mm, energy_kev, distance_mm, delta, beta,
+                     clip_hi=1e3):
+    """Paganin 单距离相位反演：从 −ln(I/I₀) 恢复**投影厚度 T**。
+
+    相比弱相位 TIE 线性化，反演把 TIE 引入的高通（边缘条纹）反解掉，
+    给出定量正确的投影厚度，因此重建值正比于真实 δ，
+    而不是被边缘增强调制过的图像。
+
+    推导（均匀物体，δ/β 沿路径恒定）：
+        I/I₀ ≈ exp(−A)·[1 − (λR/2π)∇²φ]
+        φ = −(2π/λ)·δ·T,   A = μ·T = (4πβ/λ)·T
+        ⇒ −ln(I/I₀) = (4πβ/λ)T − R·δ·∇²T
+        傅里叶域（∇² → −4π²f²）：
+            F[T] = F[−ln(I/I₀)] / [(4πβ/λ) + 4π²Rδf²]
+        ⇒ H(f) = 1/(1 + α f²)，  α = πRλδ/β
+    再乘 λ/(4πβ) 得到厚度量纲。
+    """
+    g = np.asarray(apparent_abs, dtype=float)
+    lam = wavelength_mm(energy_kev)
+    b = max(float(beta), 1e-30)
+    n = g.shape[1]
+    f = np.fft.rfftfreq(n, d=float(p_eff_mm))
+    alpha = np.pi * float(distance_mm) * lam * float(delta) / b
+    H = 1.0 / (1.0 + alpha * f ** 2)
+    T = np.fft.irfft(np.fft.rfft(g, axis=1) * H[None, :], n=n, axis=1)
+    T = T * (lam / (4.0 * np.pi * b))
+    return np.clip(T, -abs(float(clip_hi)), abs(float(clip_hi)))
+
+
+def phase_paganin_sinogram(abs_ellipses, delta_ellipses, angles_deg, n_cols,
+                           p_eff_mm, scale_mm, energy_kev, distance_mm,
+                           delta, beta, abs_scale=1.0, delta_scale=1.0):
+    """相衬 + Paganin 反演：返回 (A 纯吸收, p_tie 弱相位, T 反演厚度)。"""
+    A, p_tie = phase_contrast_sinogram(abs_ellipses, delta_ellipses, angles_deg,
+                                       n_cols, p_eff_mm, scale_mm, energy_kev,
+                                       distance_mm, abs_scale, delta_scale)
+    T = paganin_retrieve(p_tie, p_eff_mm, energy_kev, distance_mm, delta, beta)
+    return A, p_tie, T
+
+
+def edge_cnr(rec, p_dense_mm, r_object_mm, n_samples=4):
+    """量"物体边界处的可见度"：边缘环带内的对比度 / 背景噪声。
+
+    做法：以物体中心为原点，沿半径方向取剖面，比较**边界环带**与
+    **远背景**的均值差（相对背景归一），得到无量纲的边缘可见度。
+    这是判断"细胞边界看不看得见"的直接指标，不依赖 MTF。
+    """
+    a = np.asarray(rec, dtype=float)
+    n = a.shape[0]
+    c = (n - 1) / 2.0
+    yy, xx = np.mgrid[0:n, 0:n]
+    rad = np.hypot(xx - c, yy - c) * float(p_dense_mm)
+    bg = (rad > 3.0 * r_object_mm) & (rad < 4.5 * r_object_mm)
+    edge = np.abs(rad - r_object_mm) < 0.5 * r_object_mm
+    if not bg.any() or not edge.any():
+        return None
+    base = float(np.mean(a[bg]))
+    return float(abs(np.mean(a[edge]) - base) / (abs(base) + 1e-30))
+
+
+
 def validate_m1(name='cylinder', n_grid=1024, n_cols=256, pixel_um=55.0,
+
                 sod_mm=100.0, odd_mm=300.0, n_angles=90, sample_mm=10.0,
                 mu_scale=0.02, aa=2):
     """按手册 M1 的验收标准，比较解析与数值正向投影。

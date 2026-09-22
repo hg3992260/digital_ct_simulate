@@ -110,6 +110,59 @@ def _fallback_xsec(elem, energy_kev, kind):
     return 0.01 * (z ** 2) / (E ** 2)
 
 
+# ---------------------------------------------------------------------------
+# 折射率：n = 1 − δ + iβ（xraylib 实算）
+#
+# 相衬路径需要 δ；衰减路径需要 β（且 μ = 4πβ/λ 必须自洽 —— 这是一条现成的
+# 交叉校验，实测水在 33 keV 下 β=9.866e-11 → μ=0.0330/mm，与截面路径一致）。
+#
+# 组织成分按 ICRU-44 质量分数写成 xraylib 配方串；密度取各组织典型值。
+# 之前用的是"文献典型 δ"，量级对但无法区分组织；改成实算后 δ 由元素组成与
+# 密度直接决定，髓鞘（脂质富集）与灰质的 δ 差才真正体现出来。
+# ---------------------------------------------------------------------------
+TISSUE_FORMULA = {
+    'water':        ('H2O', 1.000),
+    'gray_matter':  ('H10.5C14.5N2.2O71.2P0.4S0.2Cl0.3K0.3Na0.2', 1.040),
+    'white_matter': ('H10.5C15.5N2.3O69.0P0.5S0.2Cl0.3K0.3Na0.2', 1.030),
+    'myelin':       ('H11.5C19.0N2.0O66.0P0.5S0.5', 0.900),
+    'csf':          ('H11.1O88.8Na0.5Cl0.5', 1.007),
+    'blood':        ('H10.2C11.0N3.3O74.5Na0.1P0.1S0.2Cl0.3K0.2Fe0.1', 1.060),
+}
+
+
+def formula_of(name):
+    """返回 (xraylib 配方串, 密度 g/cm³)。未知名称原样当作配方串。"""
+    if str(name) in TISSUE_FORMULA:
+        return TISSUE_FORMULA[str(name)]
+    return str(name), 1.0
+
+
+def delta_beta(name, energy_kev, density_gcc=None):
+    """返回 (δ, β)：n = 1 − δ + iβ。用 xraylib 实算，非文献典型值。"""
+    comp, rho = formula_of(name)
+    if density_gcc is not None:
+        rho = float(density_gcc)
+    if _xr is not None:
+        try:
+            re = float(_xr.Refractive_Index_Re(comp, float(energy_kev), float(rho)))
+            im = float(_xr.Refractive_Index_Im(comp, float(energy_kev), float(rho)))
+            # xraylib 的 Refractive_Index_Im 返回的**已经是 +β**（不是 −β）。
+            # 早先按 -im 取，得到负 β → Paganin 的 α 为负 → 反演发散到 clip 上限。
+            return 1.0 - re, abs(im)
+        except Exception:
+            pass
+    # 回退：δ 用电子密度近似，β 由已知 μ 反推
+    lam_mm = 1.23984e-6 / max(float(energy_kev), 1e-9)
+    mu_ = mu_linear(name, energy_kev, rho) if str(name) in COMPOSITION else 0.033
+    beta = mu_ * lam_mm / (4.0 * np.pi)
+    return float(2.12e-7 * (rho) * (33.0 / float(energy_kev)) ** 2), float(beta)
+
+
+def mu_from_beta(beta, energy_kev):
+    """μ = 4πβ/λ（1/mm）—— 用于校验折射率与截面两条路径是否自洽。"""
+    return float(4.0 * np.pi * float(beta) / (1.23984e-6 / max(float(energy_kev), 1e-9)))
+
+
 def mu_over_rho(material, energy_kev):
     """质量衰减系数 (cm²/g)。"""
     w, _ = _mass_fractions(material)
