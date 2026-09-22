@@ -3698,8 +3698,28 @@ class MainWindow(CMainWindow):
         self.result_view.text_edit().setHtml(txt)
 
         # ---- HUD ----
-        hud_txt = f"""
-        <b style='color:{P.TEXT};'>System Geometry Parameters</b><br>
+        if str(results.get('arch_key', '')) == 'synchrotron':
+            _sod = float(params.get('sync_sod_mm', 30000.0))
+            _odd = float(params.get('sync_odd_mm', 300.0))
+            _fov = float(results.get('sync_fov_mm', 0.0))
+            hud_txt = f"""
+            <b style='color:{P.TEXT};'>Synchrotron Geometry</b><br>
+            <span style='color:{P.ACCENT_DIM};'>--------------------------------</span><br>
+            <b style='color:#ff8c4d;'>射线源 Source</b><br>
+            &nbsp;&nbsp;SOD = {_sod/1000:.1f} m（固定远源：储存环 / 波荡器）<br>
+            <b style='color:#4dff88;'>样品 Sample</b><br>
+            &nbsp;&nbsp;等中心 0 mm（转台自转 360°）<br>
+            <b style='color:#5aa9ff;'>探测器 Detector</b><br>
+            &nbsp;&nbsp;ODD = {_odd:.0f} mm（贴近样品的平板探测器）<br>
+            <span style='color:{P.ACCENT_DIM};'>--------------------------------</span><br>
+            M（放大率）: {results.get('sync_M', 1.0):.4f}　近平行束<br>
+            FOV（视场）: {_fov:.1f} mm<br>
+            p_eff（有效像素）: {results.get('sync_p_eff_um', 0.0):.2f} um<br>
+            受限因素 : {results.get('sync_limited_by', '')}
+            """
+        else:
+            hud_txt = f"""
+            <b style='color:{P.TEXT};'>System Geometry Parameters</b><br>
         <span style='color:{P.ACCENT_DIM};'>--------------------------------</span><br>
         Angle (α)   : {params['alpha']}°<br>
         F-ISO (RA)  : {params['RA']} mm<br>
