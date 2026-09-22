@@ -53,7 +53,7 @@ ARCH_FULL = {
     'dual_layer': 'CT 架构：双层探测器 (Dual-Layer Spectral)',
     'pcct': 'CT 架构：光子计数 (Photon-Counting 8-bin)',
     'static_multi': 'CT 架构：静态多源 (Stationary 24-Source)',
-    'synchrotron': 'CT 架构：同步辐射 (Synchrotron · 单元光子计数改造)'}
+    'synchrotron': 'CT 架构：同步辐射 (Synchrotron · 远源近平行束 + 样品转台)'}
 SCAN_FULL = {'axial': '扫描模式：轴扫 (Axial)', 'helical': '扫描模式：螺旋 (Helical)',
              'static': '扫描模式：静态 (Static, 不旋转)'}
 

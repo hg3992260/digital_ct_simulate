@@ -19,10 +19,13 @@ ARCH_TABLE = {
     'dual_layer': (1, 2, True, '双层探测器 (Dual-Layer Spectral, 2 层)'),
     'pcct': (1, 8, True, '光子计数 (Photon-Counting, 8 能量箱)'),
     'static_multi': (24, 1, False, '静态多源 (Stationary 24-Source)'),
-    # 第 6 种：同步辐射仿真模式，以**单元光子计数**架构改造。
-    # 能量箱数不固定为 8，由 sync_bins 决定（见 calculate_geometry 中的覆盖逻辑）。
+    # 第 6 种：同步辐射 CT —— **真正的同步辐射几何**，不是临床机架的仿真近似。
+    #   源固定在储存环/波荡器上，距离样品 30~50 m  -> 近平行束 (M ≈ 1)
+    #   样品放在转台上自转 360°，探测器贴近样品 (ODD 0.05~1 m)
+    #   视场 ≈ 探测器宽度（无放大），相衬可用（长 SOD 带来高相干）
+    # 几何入口见 calculate_geometry 开头的 SOD/ODD -> RA/FDD 覆盖；
     # 物理与算法细节见 ct_synchrotron.py 及其引用的两份交接文档。
-    'synchrotron': (1, 8, True, '同步辐射 (Synchrotron · 单元光子计数改造)'),
+    'synchrotron': (1, 8, True, '同步辐射 (Synchrotron · 远源近平行束 + 样品转台)'),
 }
 
 
@@ -33,7 +36,9 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
                         sync_sigma_c_um=None, sync_detector='CdTe', sync_shaping_ns=None,
                         sync_cols=2048, sync_rows=512,
                         # µCT 几何：同步辐射用**自己的** SOD/ODD（不去挤临床的 RA/FDD）
-                        sync_sod_mm=100.0, sync_odd_mm=300.0,
+                        # 真正的同步辐射：源固定在储存环上且极远（30~50 m），
+                        # 样品放在转台上自转，探测器贴近样品（0.05~1 m）。
+                        sync_sod_mm=30000.0, sync_odd_mm=300.0,
                         # 采集：过采样帧数 / 能量箱 / 通量 / 标称能量
                         sync_oversample=4, sync_bins=8, sync_energy_kev=60.0, sync_flux=1e8,
                         # 算法：相衬 / 基底比值 / VMI 目标能量
@@ -43,10 +48,34 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
     """根据输入参数计算所有相关几何值和约束。
 
     几何约定：RA 即源-等中心距（SOD），FDD − RA 即等中心-探测器距（ODD），
-    因此放大率 M = (SOD+ODD)/SOD = FDD/RA。同步辐射模式直接复用这一关系，
-    把"样品推向源"表达为调小 RA / 调大 FDD。
+    因此放大率 M = (SOD+ODD)/SOD = FDD/RA。
+
+    **同步辐射架构（arch='synchrotron'）不使用临床机架的 RA/FDD 滑块**，
+    而是用它自己的 SOD/ODD，并在函数入口把它们写回 RA/FDD：
+        RA  := SOD（源-样品，30~50 m —— 源固定在储存环/波荡器上）
+        FDD := SOD + ODD（源-探测器）
+    于是 M = 1 + ODD/SOD ≈ 1.01（**近平行束**），锥角 ~0.1°，
+    与临床机架的 M=1.82 / 锥角 3.88° 有本质差别。LEAP 的锥束几何在此自动
+    退化为准平行束，从而保证 **物理模型（ct_synchrotron）与重建几何（LEAP）
+    用的是同一套 SOD/ODD**。
+
+    历史问题（本次修正）：默认原为 SOD=100 mm / ODD=300 mm → M=4.0，
+    那是**实验室 µCT** 而非同步辐射；且当时 ct_synchrotron 按 SOD/ODD 算 M，
+    而 LEAP 仍按 RA/FDD(590/1076) 重建，两者几何不一致。
     """
-    
+
+    # ---- 同步辐射：用 SOD/ODD 覆盖 RA/FDD，保证物理与重建几何一致 ----
+    arch_key = str(arch)
+    if arch_key == 'synchrotron':
+        _sod = float(sync_sod_mm) if sync_sod_mm else 30000.0
+        _odd = float(sync_odd_mm) if sync_odd_mm else 300.0
+        # 安全：SOD 必须大于 SFOV/2，否则下面 arcsin 定义域越界 -> NaN -> 几何崩
+        # （旧版滑块曾允许 SOD=100 mm 而 SFOV=500 mm，正是这个越界）
+        _sod = max(_sod, float(SFOV_A) * 1.5, float(SFOV_B) * 1.5)
+        RA = _sod
+        RB = _sod
+        FDD = _sod + _odd
+
     # 转换为弧度
     alpha_rad = np.deg2rad(alpha)
     

@@ -2179,7 +2179,7 @@ class MainWindow(CMainWindow):
                                             'CT 架构：双层探测器 (Dual-Layer Spectral)',
                                             'CT 架构：光子计数 (Photon-Counting 8-bin)',
                                             'CT 架构：静态多源 (Stationary 24-Source)',
-                                            'CT 架构：同步辐射 (Synchrotron · 单元光子计数改造)'],
+                                            'CT 架构：同步辐射 (Synchrotron · 远源近平行束 + 样品转台)'],
                                     current_value='CT 架构：双源 (Dual-Source)',
                                     background_color="#E3EEF9", border_color=P.ACCENT_DIM,
                                     border_width=1, corner_radius=8,
@@ -2261,11 +2261,13 @@ class MainWindow(CMainWindow):
         self.add_slider(self.sync_box, sb, "焦点尺寸 f", 0.3, 200.0, 0.1, 10.0, "µm",
                         "sync_focus_um", decimals=1)
 
-        # µCT 几何 ≠ 机架几何：同步辐射用**自己的** SOD / ODD，不去挤临床的 RA/FDD。
-        # M = (SOD+ODD)/SOD；默认 100/300 → M=4（手册 §5 的手算工况）。
-        # 临床 RA 滑块下限是 400 mm，直接借它的话 M 最大只有 3，
-        # 会把手册要求的「实用放大率 M ≈ 20–100」整个挡在量程外。
-        self.add_slider(self.sync_box, sb, "源-物距 SOD", 10.0, 1000.0, 5.0, 100.0, "mm",
+        # 真正的同步辐射几何（≠ 临床机架，也 ≠ 高放大实验室 µCT）：
+        #   源固定在储存环/波荡器上，距样品 30~50 m  -> 近平行束 M = 1+ODD/SOD ≈ 1.01
+        #   锥角 ~0.1°（临床机架是 3.88°）；视场 ≈ 探测器宽度（无放大）
+        #   样品放在转台上自转；相衬可用（长 SOD 带来高相干）
+        # 旧版把 SOD 限在 10~1000 mm（等价 M=4~31 的实验室 µCT），
+        # 那表达不出同步辐射，量程已放开到 1~60 m。
+        self.add_slider(self.sync_box, sb, "源-物距 SOD", 1000.0, 60000.0, 500.0, 30000.0, "mm",
                         "sync_sod_mm", decimals=0)
         self.add_slider(self.sync_box, sb, "物-探距 ODD", 10.0, 3000.0, 10.0, 300.0, "mm",
                         "sync_odd_mm", decimals=0)
@@ -3334,7 +3336,7 @@ class MainWindow(CMainWindow):
             sync_detector=(self._sync_det_order[self.sync_det_combo.combo_box().currentIndex()]
                            if getattr(self, '_sync_det_order', None) else 'CdTe'),
             sync_focus_um=params.get('sync_focus_um'),
-            sync_sod_mm=params.get('sync_sod_mm', 100.0),
+            sync_sod_mm=params.get('sync_sod_mm', 30000.0),
             sync_odd_mm=params.get('sync_odd_mm', 300.0),
             sync_pixel_um=params.get('sync_pixel_um', 55.0),
             sync_sigma_c_um=params.get('sync_sigma_c_um'),
