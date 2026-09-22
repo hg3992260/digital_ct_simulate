@@ -556,6 +556,100 @@ def analyze(source='metaljet', focus_um=None, sod_mm=200.0, odd_mm=400.0,
     }
 
 
+def _freq_grid(shape, voxel_um):
+    """返回 |ν| 网格（cyc/mm），用于按体素尺寸构造频域滤波。"""
+    v_mm = max(float(voxel_um), 1e-6) / 1000.0
+    ny, nx = int(shape[0]), int(shape[1])
+    fy = np.fft.fftfreq(ny, d=v_mm)
+    fx = np.fft.fftfreq(nx, d=v_mm)
+    NUY, NUX = np.meshgrid(fy, fx, indexing='ij')
+    return np.sqrt(NUY ** 2 + NUX ** 2)
+
+
+def montage(imgs, cols=2, gap=3):
+    """把若干同尺寸图像拼成一张网格图（供 ImageView 显示）。"""
+    if not imgs:
+        return None
+    n = len(imgs)
+    rows = int(np.ceil(n / float(cols)))
+    h, w = imgs[0].shape
+    out = np.zeros((rows * h + (rows - 1) * gap, cols * w + (cols - 1) * gap), np.float32)
+    for i, im in enumerate(imgs):
+        r, c = divmod(i, cols)
+        out[r * (h + gap):r * (h + gap) + h, c * (w + gap):c * (w + gap) + w] = im
+    return out
+
+
+def simulate_paths(img, voxel_um, focus_um=10.0, pixel_um=55.0, sigma_c_um=15.0,
+                   M=4.0, K=4, lam_K_um=249.0, odd_mm=300.0, energy_kev=60.0,
+                   delta_beta=100.0, phase=False, snr=50.0, escape_frac=0.25):
+    """把手册的级联模型逐级作用在**一张真实重建切片**上，返回 [(标题, 图像), ...]。
+
+    与"示意曲线"不同：每一级都用当前参数对当前数据实算。所有返回图按**同一标尺**
+    归一（以基准图的 99.5 分位），因此可以直接并排比较各仿真路径对图像的影响。
+
+    级序（对应手册 §3.1 的级联与 §5 的四条腿）：
+        ① 基准          —— 输入切片
+        ② 微焦点半影     —— 腿① 源：圆盘 PSF，直径 b = f·(M−1)/M
+        ③ 单帧采样       —— 过采样前的可恢复频带，硬限带到 f₀/2
+        ④ K 帧过采样     —— 合成密采样网格，频带推到 min(f_N(K), f₀)（K≥2 即饱和）
+        ⑤ 电荷共享       —— 腿② 探测器：σ_c 投到样品面，高斯 MTF
+        ⑥ K 荧光逃逸     —— λ_K 投到样品面，洛伦兹型再吸收核
+        ⑦ 反卷积收口     —— 腿④ 算法：按系统 MTF 做维纳反卷积
+        ⑧ 相衬（可选）   —— Paganin 单距离相位恢复核
+    """
+    a = np.asarray(img, dtype=np.float64)
+    if a.ndim != 2 or min(a.shape) < 8:
+        return []
+
+    m = max(float(M), 1e-9)
+    p_eff_um = float(pixel_um) / m                    # 样品面有效像素
+    b_um = float(focus_um) * max(m - 1.0, 0.0) / m    # 样品面半影
+    sc_um = float(sigma_c_um) / m                     # 样品面电荷云
+    lk_um = float(lam_K_um) / m                       # 样品面逃逸长度
+    eta_k = float(np.clip(escape_frac, 0.0, 1.0))     # K 荧光逃逸光子占比
+
+    NU = _freq_grid(a.shape, voxel_um)
+    F = np.fft.fft2(a)
+    f0 = 1000.0 / max(p_eff_um, 1e-9)                 # 孔径零点 cu/mm
+    cut_single = f0 / 2.0
+    cut_over = min(float(K) / (2.0 * max(p_eff_um, 1e-9) / 1000.0), f0)
+
+    def _ap(H):
+        return np.real(np.fft.ifft2(F * H))
+
+    stages = [('① 基准（输入切片）', a.copy())]
+    stages.append(('② 微焦点半影 b=%.1f µm' % b_um,
+                   _ap(disk_mtf(NU, b_um / 1000.0))))
+    # ③ 单帧：孔径 MTF 对所有频率都生效，只是可恢复频带被 f_N(1)=f₀/2 截断。
+    #    注意不能只做硬限带 —— 那会让它在 f₀/2 以下反而比过采样更"亮"，物理上不成立。
+    _ap_mtf = aperture_mtf(NU, p_eff_um / 1000.0)
+    stages.append(('③ 单帧采样 f_N=½f₀', _ap(_ap_mtf * (NU <= cut_single))))
+    stages.append(('④ %d 帧过采样 → %.0f%% f₀' % (int(K), 100.0 * cut_over / max(f0, 1e-9)),
+                   _ap(_ap_mtf * (NU <= cut_over))))
+    stages.append(('⑤ 电荷共享 σ_c/M=%.2f µm' % sc_um,
+                   _ap(charge_mtf(NU, sc_um / 1000.0))))
+    # ⑥ K 荧光：只有逃逸那一部分光子跑到邻域再吸收，是**部分**串扰而非整幅模糊。
+    #    全额模糊会严重夸大（手册 §4.6 说的是能谱污染，不是把图像糊掉）。
+    _kern = 1.0 / (1.0 + (2.0 * np.pi * NU * lk_um / 1000.0) ** 2)
+    stages.append(('⑥ K 荧光逃逸 η=%.0f%%（λ_K/M=%.1f µm）'
+                   % (100.0 * eta_k, lk_um),
+                   _ap((1.0 - eta_k) + eta_k * _kern)))
+    stages.append(('⑦ 反卷积收口（腿④）',
+                   deconvolve_image(a, voxel_um, focus_um, pixel_um, sigma_c_um, M, snr)))
+
+    if phase:
+        lam_mm = 1.23984e-6 / max(float(energy_kev), 1e-9)
+        alpha = float(delta_beta) * lam_mm * max(float(odd_mm), 0.0) / (4.0 * np.pi)
+        stages.append(('⑧ 相衬 Paganin（δ/β=%.0f）' % float(delta_beta),
+                       _ap(1.0 / (1.0 + alpha * NU ** 2))))
+
+    # 统一标尺：以基准的 99.5 分位归一，保证各级可直接比较
+    ref = float(np.percentile(np.abs(stages[0][1]), 99.5)) or 1.0
+    norm = [(t, np.clip(im / ref, 0.0, 1.0).astype(np.float32)) for t, im in stages]
+    return norm
+
+
 def summary_lines(res):
     """把 analyze() 的结果压成几行中文，供 GUI / 日志直接显示。"""
     g, s, m = res['geometry'], res['sampling'], res['mtf']

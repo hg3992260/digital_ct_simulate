@@ -408,6 +408,10 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
                 'sync_r_um': g['r_um'], 'sync_r_star_um': g['r_star_um'],
                 'sync_limited_by': g['limited_by'], 'sync_fov_mm': g['fov_mm'],
                 'sync_cols': int(sync_cols), 'sync_rows': int(sync_rows),
+                # 同步辐射的重建体素：样品面有效像素 p/M 经 K 帧过采样细分。
+                # 不能用临床的 iso_sampling —— 那是机架通道采样，与本模式无关，
+                # 而且量级差 40 倍，会让"反卷积是否有效"的判断完全失真。
+                'sync_voxel_um': float(g['p_eff_um'] / max(int(sm['K']), 1)),
                 'sync_f0': sm['f0_cyc_mm'], 'sync_fnyq_single': sm['f_nyq_single'],
                 'sync_fnyq_over': sm['f_nyq_over'], 'sync_fnyq_eff': sm['f_nyq_effective'],
                 'sync_K': sm['K'], 'sync_grid_um': sm['grid_um'],

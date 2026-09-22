@@ -34,7 +34,7 @@ import ct6_bridge as B   # noqa: E402
 PROTO = '2024-11-05'
 SERVER = {'name': 'ct6-ct-simulator', 'version': '1.0.0'}
 
-OPS = ['ping', 'list', 'get', 'set', 'arch', 'scan', 'fbp', 'fermi', 'shot', 'view']
+OPS = ['ping', 'list', 'get', 'set', 'arch', 'scan', 'fbp', 'fermi', 'shot', 'view', 'tab']
 
 GEOM_KEYS = ['alpha', 'RA', 'RB', 'FDD', 'SFOV_A', 'SFOV_B', 'Z_coverage', 'rotation_time',
              'sampling_rate', 'pixel_xy', 'pixel_z', 'n_ch_set', 'bowtie_sfov', 'bowtie_edge',

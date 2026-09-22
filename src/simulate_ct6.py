@@ -949,6 +949,14 @@ class ReconstructionWidget(QWidget):
         return image
 
     def update_data(self, results, params):
+        # 同步辐射仿真路径面板：仅在 arch='synchrotron' 时可见，切走即隐藏（不占版面）
+        try:
+            _sp = getattr(getattr(self, 'fbp_panel', None), 'sync_panel', None)
+            if _sp is not None:
+                _sp.setVisible(str((results or {}).get('arch_key', '')) == 'synchrotron')
+        except Exception:
+            pass
+
         sampling_rate = params.get('sampling_rate', 2000)
         rotation_time = params['rotation_time']
 
@@ -1301,6 +1309,96 @@ class FbpProcessPanel(QWidget):
             except Exception as exc:
                 self.engine = None
                 self._set_info(f'LEAP 引擎初始化失败：{exc}')
+
+
+        # ---------------- 最右：同步辐射仿真路径（**仅该架构可见**）----------------
+        # 手册 §3.1 的级联模型 + §5 的四条腿，在**刚重建出的真实切片**上逐级实算，
+        # 而不是示意曲线。切到其它架构时整块隐藏，不占版面。
+        self.sync_panel = QWidget()
+        self.sync_panel.setFixedWidth(400)
+        spl = QVBoxLayout(self.sync_panel)
+        spl.setContentsMargins(0, 0, 0, 0)
+        spl.setSpacing(3)
+
+        sp_head = CLabel(self.sync_panel, width=396, height=18,
+                         text="同步辐射仿真路径 (Synchrotron Paths)",
+                         font_family="Microsoft YaHei UI", font_size=9, font_style="bold",
+                         text_color=P.ACCENT)
+        sp_head.label().setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        spl.addWidget(sp_head)
+
+        self.iv_sync = iv()
+        spl.addWidget(self.iv_sync, 1)
+
+        self.sync_legend = CTextEdit(self.sync_panel, width=396, height=150,
+                                     font_family="Microsoft YaHei UI", font_size=8,
+                                     text_color=P.TEXT_DIM, background_color=P.GROOVE_T,
+                                     border_color=P.HAIRLINE, corner_radius=8, border_width=1)
+        self.sync_legend.text_edit().setReadOnly(True)
+        spl.addWidget(self.sync_legend)
+
+        root.addWidget(self.sync_panel)
+        self.sync_panel.setVisible(False)
+
+    # ------------------------------------------------------------------
+    def _update_sync_paths(self, img):
+        """把同步辐射的仿真链逐级作用在刚重建出的切片上，显示在右侧专用面板。
+
+        只在 arch='synchrotron' 时显示 —— 这是"该架构专属"的仿真视图。
+        """
+        panel = getattr(self, 'sync_panel', None)
+        r = self.results or {}
+        is_sync = str(r.get('arch_key', '')) == 'synchrotron'
+        if panel is not None:
+            panel.setVisible(is_sync)
+        if not is_sync or panel is None:
+            return
+        try:
+            import ct_synchrotron as _CSS
+        except Exception:
+            return
+        try:
+            # 重建体素用同步辐射**自己的**样品面尺度（p/M 经 K 帧过采样细分），
+            # 而不是临床的 iso_sampling —— 后者是机架通道采样，量级差约 40 倍，
+            # 会让"反卷积是否有效"的判断完全失真。
+            vox_um = float(r.get('sync_voxel_um', 0.0) or 0.0)
+            if vox_um <= 0:
+                vox_um = (float(r.get('sync_p_eff_um', 13.75) or 13.75)
+                          / max(int(r.get('sync_oversample', 4) or 4), 1))
+            psf_um = float(r.get('sync_penumbra_um', 0.0) or 0.0)
+            stages = _CSS.simulate_paths(
+                img, voxel_um=vox_um,
+                focus_um=float(r.get('sync_focus_um', 10.0)),
+                pixel_um=float(r.get('sync_pixel_um', 55.0)),
+                sigma_c_um=float(r.get('sync_sigma_c_um', 15.0)),
+                M=float(r.get('sync_M', 1.0) or 1.0),
+                K=int(r.get('sync_oversample', 4) or 4),
+                lam_K_um=float(r.get('sync_lambda_K_um', 249.0)),
+                odd_mm=float(r.get('sync_odd_mm', 300.0)),
+                energy_kev=float(r.get('sync_energy_kev', 60.0)),
+                delta_beta=float(r.get('sync_delta_beta', 100.0)),
+                phase=bool(r.get('sync_phase_on', False)))
+            if not stages:
+                return
+            self.iv_sync.setImage(_CSS.montage([im for _, im in stages], cols=2))
+
+            rows = ['<b>逐级仿真（同一标尺，可直接比对）</b>']
+            for t, _im in stages:
+                rows.append('&nbsp;&nbsp;' + t)
+            rows.append('')
+            rows.append('<b>MTF10</b> %.0f lp/cm　<b>r(M)</b> %.2f µm　<b>r*</b> %.2f µm'
+                        % (r.get('sync_lp_cm', 0.0), r.get('sync_r_um', 0.0),
+                           r.get('sync_r_star_um', 0.0)))
+            rows.append('<b>DQE</b> %.3f　<b>香农</b> %.0f bit/mm　<b>FOV</b> %.1f mm'
+                        % (r.get('sync_dqe', 0.0), r.get('sync_shannon', 0.0),
+                           r.get('sync_fov_mm', 0.0) or 0.0))
+            rows.append('体素 %.1f µm　半影 PSF %.1f µm　%s'
+                        % (vox_um, psf_um,
+                           '<b>反卷积有效</b>（体素 &lt; PSF）' if vox_um < psf_um
+                           else '体素 ≥ PSF，反卷积收益有限'))
+            self.sync_legend.text_edit().setHtml('<br>'.join(rows))
+        except Exception as exc:
+            print(f'[WARN] 同步辐射仿真路径渲染失败: {exc}')
 
     # ---------------- 内部工具 ----------------
     def _set_info(self, txt):
@@ -1711,7 +1809,11 @@ class FbpProcessPanel(QWidget):
                 _sw = getattr(self, 'sync_deconv_sw', None)
                 if _sw is not None and _sw.isChecked():
                     import ct_synchrotron as _CSD
-                    _vox = float(self.results.get('iso_sampling_mm', 0.05) or 0.05) * 1000.0
+                    # 同 _update_sync_paths：用同步辐射自己的样品面体素，不用临床 iso_sampling
+                    _vox = float(self.results.get('sync_voxel_um', 0.0) or 0.0)
+                    if _vox <= 0:
+                        _vox = (float(self.results.get('sync_p_eff_um', 13.75) or 13.75)
+                                / max(int(self.results.get('sync_oversample', 4) or 4), 1))
                     _psf = float(self.results.get('sync_penumbra_um', 0.0) or 0.0)
                     img = _CSD.deconvolve_image(
                         img, voxel_um=_vox,
@@ -1729,6 +1831,9 @@ class FbpProcessPanel(QWidget):
                 print(f'[WARN] 同步辐射反卷积失败: {_de}')
 
         self.iv_rec.setImage(img)
+
+        # 同步辐射专属：把仿真链逐级作用在这张切片上，显示到右侧面板
+        self._update_sync_paths(np.asarray(img, dtype=np.float64))
         dt_all = time.perf_counter() - t_all
 
         # ---- 静态多源：① 顺序触发→等效旋转 FBP(+Parker)  ② 模块束+SART ----

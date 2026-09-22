@@ -388,6 +388,19 @@ class Bridge(QObject):
                 return {'ok': False, 'error': 'Fermi 页签不可用（仅光子计数架构可见）'}
             self.call_main(fp.compute)
             return {'ok': True}
+        if op == 'tab':
+            # 切换重建分析页签（Agent 需要"看到"某个页才能截图/核对）。
+            # name 支持模糊匹配：sinogram / fbp / fermi / ideal / actual / artifact
+            def _tab():
+                tabs = win.recon_widget.tabs
+                names = [tabs.tabText(i) for i in range(tabs.count())]
+                key = str(req.get('name', req.get('tab', ''))).strip().lower()
+                idx = next((i for i, t in enumerate(names) if key and key in t.lower()), None)
+                if idx is None:
+                    return {'ok': False, 'tabs': names}
+                tabs.setCurrentIndex(idx)
+                return {'ok': True, 'index': idx, 'name': names[idx], 'tabs': names}
+            return self.call_main(_tab)
         if op == 'view':
             def _v():
                 win.view.setCameraPosition(**({'distance': 2500})) if False else None
