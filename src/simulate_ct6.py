@@ -3023,6 +3023,33 @@ class MainWindow(CMainWindow):
         SL['odd'].setData(pos=(xd * 0.5, 250, 0), text='ODD = %.0f mm' % odd)
 
     def update_scene(self, params, results, fan_A, fan_B, is_asymmetric):
+        """延迟重建：合并高频调用（架构切换 / 拖滑块），避免主线程同步冻结。
+
+        真正重建在 60ms 单发定时器里执行（_flush_scene -> _update_scene_impl），
+        期间若再有更新则只覆盖参数、不重复重建。
+        """
+        self._scene_pending = (params, results, fan_A, fan_B, is_asymmetric)
+        if getattr(self, '_scene_timer', None) is None:
+            self._scene_timer = QTimer(self)
+            self._scene_timer.setSingleShot(True)
+            self._scene_timer.setInterval(60)
+            self._scene_timer.timeout.connect(self._flush_scene)
+        if getattr(self, '_scene_first', True):
+            # 首次同步执行：避免 GLMeshItem 在 None 顶点下被首帧绘制
+            self._scene_first = False
+            self._flush_scene()
+            return
+        self._scene_timer.start()
+
+    def _flush_scene(self):
+        """定时器到点：用最近一次参数做一次重建。"""
+        if getattr(self, '_scene_pending', None) is None:
+            return
+        params, results, fan_A, fan_B, is_asymmetric = self._scene_pending
+        self._scene_pending = None
+        self._update_scene_impl(params, results, fan_A, fan_B, is_asymmetric)
+
+    def _update_scene_impl(self, params, results, fan_A, fan_B, is_asymmetric):
         FDD = float(params['FDD'])
         # ---- 同步辐射架构：专属三维场景（远源近平行束 + 样品转台 + 平板探测器）----
         if str(results.get('arch_key', '')) == 'synchrotron':
