@@ -3,6 +3,10 @@
 **双源 CT 真实几何模拟器 · Native Edition（CT6）**
 
 [![windows-build](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml/badge.svg)](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml)
+[![release](https://img.shields.io/github/v/release/hg3992260/digital_ct_simulate?label=release&color=3070B3)](https://github.com/hg3992260/digital_ct_simulate/releases/latest)
+[![license](https://img.shields.io/github/license/hg3992260/digital_ct_simulate?color=3070B3)](LICENSE)
+
+> 当前版本 **v1.0** —— 变更见 [`CHANGELOG.md`](CHANGELOG.md)。
 
 > 双源宽体 CT 的**几何 / 数据 / 重建数字孪生**：5 种 CT 架构 × LEAP-CT 物理重建 ×
 > 半导体探测器响应（Fermi）× 严格多材料谱分解，并内置**面向 AI Agent 的控制桥（MCP）**，
@@ -89,8 +93,12 @@
 
 ### 方式 A：下载 Windows 可执行文件（推荐）
 
+前往 **[Releases](https://github.com/hg3992260/digital_ct_simulate/releases/latest)**，
+下载 `DSW_CT_Windows_v1.0.zip`，解压后直接运行 `DSW_CT.exe`（`_internal` 需与它同级）。
+
+若想拿最新的开发版构建，也可以走
 **Actions → [`windows-build`](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml)
-→ 最新一次成功 run → Artifacts → `DSW_CT_Windows`**，解压后直接运行 `DSW_CT.exe`。
+→ 最新一次成功 run → Artifacts → `DSW_CT_Windows`**。
 
 > 产物已内含 CUDA 运行时，且构建流程带**冻结环境自检**（真的 import 全部模块并构造一次
 > LEAP 引擎），所以不会出现"构建绿了但一跑就崩"的包。

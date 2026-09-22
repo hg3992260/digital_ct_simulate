@@ -175,6 +175,10 @@ APP_NAME_CN = "双源 CT 真实几何模拟器"
 APP_NAME_EN = "Dual-Source CT Cone-Beam Geometry Simulator"
 APP_SUB_EN = "Native Edition  ·  PySide6 + PyCt6  ·  Cone-Beam Geometry Engine"
 
+# 版本号：与 git tag / GitHub Release 保持一致（见 CHANGELOG.md）
+APP_VERSION = "1.0"
+APP_BUILD = "PySide6 + PyCt6 · LEAP-CT 1.26 · xraylib 4.3.0"
+
 
 def asset_path(name):
     """assets/ 资源定位：源码运行用脚本目录，打包运行用 _MEIPASS。"""
@@ -242,7 +246,7 @@ def build_splash_pixmap(width=780, height=640):
     p.setPen(QColor(P.TEXT_DIM))
     p.setFont(QFont("Segoe UI", 11))
     p.drawText(QRectF(0, 468, width, 24), Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignVCenter,
-               APP_NAME_EN)
+               f"{APP_NAME_EN}   ·   v{APP_VERSION}")
 
     p.setPen(QPen(QColor(P.HAIRLINE), 1))
     p.drawLine(QPointF(130, 508), QPointF(width - 130, 508))
@@ -1930,7 +1934,7 @@ class FbpProcessPanel(QWidget):
 class MainWindow(CMainWindow):
     def __init__(self):
         super().__init__(width=1520, height=960,
-                         title="双源 CT 真实几何模拟器 (Cone Beam) - Native Edition",
+                         title=f"双源 CT 真实几何模拟器 (Cone Beam) - Native Edition  v{APP_VERSION}",
                          icon=icon_path())
         self.setStyleSheet(qss_global())
         self.setMinimumSize(1180, 760)
@@ -3260,6 +3264,7 @@ def main():
 
     app = QApplication(sys.argv)
     app.setApplicationName("双源 CT 真实几何模拟器")
+    app.setApplicationVersion(APP_VERSION)
     pg.setConfigOptions(background=PLOT_BG, foreground=PLOT_FG, antialias=True)
 
     icon = app_icon()

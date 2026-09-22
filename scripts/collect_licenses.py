@@ -33,7 +33,8 @@ DISTS = [
 
 LICENSE_GLOBS = ('LICENSE*', 'LICENCE*', 'COPYING*', 'NOTICE*', 'AUTHORS*')
 
-REPO_FILES = ('LICENSE', 'THIRD_PARTY_NOTICES.md')
+# 随产物一起发出的仓库文档（许可与声明是合规要求，CHANGELOG 便于用户对版本）
+REPO_FILES = ('LICENSE', 'THIRD_PARTY_NOTICES.md', 'CHANGELOG.md')
 
 
 def main():
