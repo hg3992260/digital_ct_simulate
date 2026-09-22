@@ -63,6 +63,10 @@ import ct_scene as SC
 import ct_helical as CH
 import ct_index as CI
 import ct_fermi as CF
+try:
+    import ct_synchrotron as CS      # 同步辐射仿真模式（第 6 种架构）的物理与算法
+except Exception:                    # pragma: no cover
+    CS = None
 
 try:
     import ct_leap as CL          # LEAP-CT 真实几何物理引擎（不可用时 FBP 页签降级提示）
@@ -1990,7 +1994,8 @@ class MainWindow(CMainWindow):
                                             'CT 架构：单源宽体 (Single-Source Wide-Body)',
                                             'CT 架构：双层探测器 (Dual-Layer Spectral)',
                                             'CT 架构：光子计数 (Photon-Counting 8-bin)',
-                                            'CT 架构：静态多源 (Stationary 24-Source)'],
+                                            'CT 架构：静态多源 (Stationary 24-Source)',
+                                            'CT 架构：同步辐射 (Synchrotron · 单元光子计数改造)'],
                                     current_value='CT 架构：双源 (Dual-Source)',
                                     background_color="#E3EEF9", border_color=P.ACCENT_DIM,
                                     border_width=1, corner_radius=8,
@@ -2035,6 +2040,90 @@ class MainWindow(CMainWindow):
         self.ring_combo.combo_box().currentTextChanged.connect(
             lambda _=None: self.update_simulation())
         pc.addWidget(self.ring_combo)
+
+        # ================= 同步辐射仿真模式（仅该架构可见）=================
+        # 依据《PCCT 模拟同步辐射 CT · 算法交接手册》与《PCD CT 细胞级扫描 ·
+        # 工程交接文档》：以**单元光子计数**架构改造。硬件（源亮度 / 焦点 /
+        # 探测器材料与像素 / 电荷云 σ_c / K 荧光 λ_K / 整形时间 τ）与算法
+        # （子像素过采样 / MTF 级联 / 电荷共享与 K 荧光 / VMI / 相衬 / 剂量与
+        # 信息量）全部参数化，派生量由 ct_synchrotron.py 统一计算。
+        self.sync_box = QWidget(params_card)
+        sb = QVBoxLayout(self.sync_box)
+        sb.setContentsMargins(0, 0, 0, 0)
+        sb.setSpacing(4)
+
+        sync_head = CLabel(self.sync_box, width=360, height=22,
+                           text="同步辐射仿真 (Synchrotron)",
+                           font_family="Microsoft YaHei UI", font_size=9, font_style="bold",
+                           text_color=P.ACCENT)
+        sync_head.label().setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        sb.addWidget(sync_head)
+
+        self._sync_src_order = list(CS.SOURCES) if CS else ['metaljet']
+        self._sync_det_order = list(CS.DETECTORS) if CS else ['CdTe']
+
+        self.sync_source_combo = CComboBox(
+            self.sync_box, width=376, height=28,
+            font_family="Microsoft YaHei UI", font_size=10,
+            values=([CS.SOURCES[k]['label'] for k in self._sync_src_order]
+                    if CS else ['液态金属射流靶']),
+            current_value=(CS.SOURCES[self._sync_src_order[0]]['label']
+                           if CS else '液态金属射流靶'),
+            text_color=P.TEXT, item_text_color=P.TEXT, menu_background_color="#FFFFFF")
+        self.sync_source_combo.combo_box().currentTextChanged.connect(
+            lambda _=None: self.update_simulation())
+        sb.addWidget(self.sync_source_combo)
+
+        self.add_slider(self.sync_box, sb, "焦点尺寸 f", 0.3, 200.0, 0.1, 10.0, "µm",
+                        "sync_focus_um", decimals=1)
+
+        self.sync_det_combo = CComboBox(
+            self.sync_box, width=376, height=28,
+            font_family="Microsoft YaHei UI", font_size=10,
+            values=([CS.DETECTORS[k]['label'] for k in self._sync_det_order]
+                    if CS else ['CdTe']),
+            current_value=(CS.DETECTORS[self._sync_det_order[0]]['label']
+                           if CS else 'CdTe'),
+            text_color=P.TEXT, item_text_color=P.TEXT, menu_background_color="#FFFFFF")
+        self.sync_det_combo.combo_box().currentTextChanged.connect(
+            lambda _=None: self.update_simulation())
+        sb.addWidget(self.sync_det_combo)
+
+        self.add_slider(self.sync_box, sb, "探测器像素 p", 5.0, 500.0, 1.0, 55.0, "µm",
+                        "sync_pixel_um", decimals=0)
+        self.add_slider(self.sync_box, sb, "电荷云半径 σ_c", 1.0, 60.0, 0.5, 15.0, "µm",
+                        "sync_sigma_c_um", decimals=1)
+        self.add_slider(self.sync_box, sb, "子像素过采样 K", 1, 8, 1, 4, "帧",
+                        "sync_oversample")
+        self.add_slider(self.sync_box, sb, "能量箱数", 2, 24, 1, 8, "箱", "sync_bins")
+        self.add_slider(self.sync_box, sb, "标称能量", 20, 150, 1, 60, "keV",
+                        "sync_energy_kev")
+        self.add_slider(self.sync_box, sb, "入射通量 φ", 4.0, 12.0, 0.5, 8.0, "×10ⁿ",
+                        "sync_flux_log", decimals=1)
+        self.add_slider(self.sync_box, sb, "整形时间 τ", 5, 100, 1, 20, "ns",
+                        "sync_shaping_ns")
+        self.add_slider(self.sync_box, sb, "δ/β 相衬灵敏度", 1, 2000, 1, 100, "",
+                        "sync_delta_beta")
+        self.add_slider(self.sync_box, sb, "VMI 目标能量", 30, 140, 1, 65, "keV",
+                        "sync_vmi_kev")
+        self.add_slider(self.sync_box, sb, "目标分辨率", 1.0, 200.0, 1.0, 15.0, "µm",
+                        "sync_target_res_um", decimals=0)
+
+        self.sync_phase_sw = SkeuoSwitch(self.sync_box,
+                                         text="in-line 相衬（Paganin 单距离相位恢复）",
+                                         checked=False,
+                                         on_change=self.update_simulation)
+        sb.addWidget(self.sync_phase_sw)
+
+        self.sync_hint = CLabel(self.sync_box, width=360, height=18, text="",
+                                font_family="Microsoft YaHei UI", font_size=9,
+                                text_color=P.TEXT_MUTE)
+        self.sync_hint.label().setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        sb.addWidget(self.sync_hint)
+
+        pc.addWidget(self.sync_box)
+        self.sync_box.setVisible(False)
+
         self._update_protocol_state()
 
         # 署名玻璃条
@@ -2318,11 +2407,18 @@ class MainWindow(CMainWindow):
         p.end()
 
     def _on_arch(self, txt):
-        """CT 架构切换 → 触发扫描方案联动。"""
-        m = {'双源': 'dual_source', '单源宽体': 'single_wide', '双层': 'dual_layer',
-             '光子计数': 'pcct', '静态多源': 'static_multi'}
-        self.arch_key = next((v for k, v in m.items() if txt.split('：')[-1].startswith(k)
-                              or k in txt), 'dual_source')
+        """CT 架构切换 → 触发扫描方案联动。
+
+        注意：这里必须对选项文本做**前缀**匹配，不能用"关键字包含"。
+        同步辐射的标签是「同步辐射 (Synchrotron · 单元光子计数改造)」，
+        里面含"光子计数"四字，用包含匹配会被 pcct 抢先命中。
+        """
+        tail = txt.split('：')[-1]
+        m = [('同步辐射', 'synchrotron'),        # 必须排在"光子计数"之前
+             ('双源', 'dual_source'), ('单源宽体', 'single_wide'),
+             ('双层', 'dual_layer'), ('光子计数', 'pcct'),
+             ('静态多源', 'static_multi')]
+        self.arch_key = next((v for k, v in m if tail.startswith(k)), 'dual_source')
         self._update_protocol_state()
         if not hasattr(self, 'recon_widget'):      # 构造期尚未建完，等首次 update 再刷
             return
@@ -2363,6 +2459,11 @@ class MainWindow(CMainWindow):
         sl.value_label.label().setStyleSheet(
             f"color:{P.ACCENT if sl.slider().isEnabled() else P.TEXT_MUTE};")
         self.pitch_hint.label().setText(hint)
+
+        # 同步辐射仿真参数组：仅该架构可见（与 Fermi 页签同一思路：按架构开关）
+        sync_on = getattr(self, 'arch_key', '') == 'synchrotron'
+        if hasattr(self, 'sync_box'):
+            self.sync_box.setVisible(sync_on)
 
     def add_slider(self, master, layout, name, min_v, max_v, step, default, unit, key,
                    is_float=False, decimals=None, on_change=None):
@@ -3018,12 +3119,46 @@ class MainWindow(CMainWindow):
             slice_interval=params.get('slice_interval', 1.0),
             shots_per_source=params.get('shots_per_source', 1),
             ring_sources=(12 if '半环' in self.ring_combo.combo_box().currentText()
-                          else (16 if '短扫描' in self.ring_combo.combo_box().currentText() else 0))
+                          else (16 if '短扫描' in self.ring_combo.combo_box().currentText() else 0)),
+            # ---- 同步辐射仿真模式（arch='synchrotron' 时生效）----
+            # 源/探测器下拉按索引映射回 key；通量滑块走 log10 刻度。
+            sync_source=(self._sync_src_order[self.sync_source_combo.combo_box().currentIndex()]
+                         if getattr(self, '_sync_src_order', None) else 'metaljet'),
+            sync_detector=(self._sync_det_order[self.sync_det_combo.combo_box().currentIndex()]
+                           if getattr(self, '_sync_det_order', None) else 'CdTe'),
+            sync_focus_um=params.get('sync_focus_um'),
+            sync_pixel_um=params.get('sync_pixel_um', 55.0),
+            sync_sigma_c_um=params.get('sync_sigma_c_um'),
+            sync_oversample=int(params.get('sync_oversample', 4)),
+            sync_bins=int(params.get('sync_bins', 8)),
+            sync_energy_kev=params.get('sync_energy_kev', 60.0),
+            sync_flux=10.0 ** float(params.get('sync_flux_log', 8.0)),
+            sync_shaping_ns=params.get('sync_shaping_ns'),
+            sync_phase=bool(getattr(getattr(self, 'sync_phase_sw', None), 'isChecked',
+                                    lambda: False)()),
+            sync_delta_beta=params.get('sync_delta_beta', 100.0),
+            sync_vmi_kev=params.get('sync_vmi_kev', 65.0),
+            sync_target_res_um=params.get('sync_target_res_um', 15.0),
         )
 
         if "error" in results:
             self.result_view.text_edit().setHtml(f"<span style='color:{P.WARN}'>Error: {results['error']}</span>")
             return
+
+        # ---- 同步辐射模式提示：放大率 / 有效像素 / 视场的取舍（手册 §4.2 失效模式）----
+        # M 太小 → 放大收益消失（p_eff→p）；M 太大 → FOV = 阵列宽/M 缩到装不下样品。
+        if getattr(self, 'arch_key', '') == 'synchrotron' and hasattr(self, 'sync_hint'):
+            try:
+                mp = results.get('sync_M_practical') or 0.0
+                txt_h = ('M = %.2f　p/M = %.2f µm　FOV = %.1f mm　r* = %.2f µm'
+                         % (results.get('sync_M', 0.0), results.get('sync_p_eff_um', 0.0),
+                            results.get('sync_fov_mm') or 0.0,
+                            results.get('sync_r_star_um', 0.0)))
+                if mp and results.get('sync_M', 0) < 0.5 * mp:
+                    txt_h += '　⚠ 放大率偏低，实用 M ≈ %.0f' % mp
+                self.sync_hint.label().setText(txt_h)
+            except Exception:
+                pass
 
         # 3D 场景按当前参数重建（球管总成 / 锥束 / 曲面探测器 / SFOV 球 / 夹角弧）
         self.update_scene(params, results, fan_A, fan_B, is_asymmetric)

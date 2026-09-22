@@ -45,14 +45,15 @@ import time
 DISCOVERY = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ct6_bridge.json')
 
 ARCH_KEYS = {'dual_source': '双源', 'single_wide': '单源宽体', 'dual_layer': '双层',
-             'pcct': '光子计数', 'static_multi': '静态多源'}
+             'pcct': '光子计数', 'static_multi': '静态多源', 'synchrotron': '同步辐射'}
 # 下拉框完整选项文本（setCurrentText 必须精确匹配，否则静默失败）
 ARCH_FULL = {
     'dual_source': 'CT 架构：双源 (Dual-Source)',
     'single_wide': 'CT 架构：单源宽体 (Single-Source Wide-Body)',
     'dual_layer': 'CT 架构：双层探测器 (Dual-Layer Spectral)',
     'pcct': 'CT 架构：光子计数 (Photon-Counting 8-bin)',
-    'static_multi': 'CT 架构：静态多源 (Stationary 24-Source)'}
+    'static_multi': 'CT 架构：静态多源 (Stationary 24-Source)',
+    'synchrotron': 'CT 架构：同步辐射 (Synchrotron · 单元光子计数改造)'}
 SCAN_FULL = {'axial': '扫描模式：轴扫 (Axial)', 'helical': '扫描模式：螺旋 (Helical)',
              'static': '扫描模式：静态 (Static, 不旋转)'}
 
@@ -60,7 +61,12 @@ SCAN_FULL = {'axial': '扫描模式：轴扫 (Axial)', 'helical': '扫描模式�
 def _inventory(win):
     """输入变量清单：名称 → {kind, value, min, max, values}。"""
     out = {}
+    # 同步辐射仿真参数只在切到该架构时列出（与 Fermi 页签同一口径），
+    # 免得 Agent 在别的架构下改这些不起作用的量还以为生效了。
+    sync_on = getattr(win, 'arch_key', None) == 'synchrotron'
     for k, s in getattr(win, 'sliders', {}).items():
+        if k.startswith('sync_') and not sync_on:
+            continue
         try:
             v = s.value()
         except Exception:
@@ -83,6 +89,21 @@ def _inventory(win):
         if o is not None:
             try:
                 out[nm] = {'kind': 'switch', 'value': bool(o.isChecked())}
+            except Exception:
+                pass
+    if sync_on:
+        for name, attr in (('sync_source', 'sync_source_combo'),
+                           ('sync_detector', 'sync_det_combo')):
+            c = getattr(win, attr, None)
+            if c is not None:
+                try:
+                    out[name] = {'kind': 'combo', 'value': c.combo_box().currentText()}
+                except Exception:
+                    pass
+        o = getattr(win, 'sync_phase_sw', None)
+        if o is not None:
+            try:
+                out['sync_phase_sw'] = {'kind': 'switch', 'value': bool(o.isChecked())}
             except Exception:
                 pass
     try:
@@ -216,6 +237,16 @@ def _apply(win, params):
                            else '采集环段：短扫描 16 源 (180°+扇角)' if str(v).startswith('16')
                            else '采集环段：全环 24 源 (360°)')
                 win.ring_combo.combo_box().setCurrentText(txt)
+                rep[k] = 'ok'
+                continue
+            if k in ('sync_source', 'sync_detector'):
+                box = (win.sync_source_combo if k == 'sync_source'
+                       else win.sync_det_combo)
+                box.combo_box().setCurrentText(str(v))
+                rep[k] = 'ok'
+                continue
+            if k == 'sync_phase_sw':
+                win.sync_phase_sw.setChecked(bool(v))
                 rep[k] = 'ok'
                 continue
             p = win.recon_widget.fbp_panel

@@ -19,11 +19,31 @@ ARCH_TABLE = {
     'dual_layer': (1, 2, True, '双层探测器 (Dual-Layer Spectral, 2 层)'),
     'pcct': (1, 8, True, '光子计数 (Photon-Counting, 8 能量箱)'),
     'static_multi': (24, 1, False, '静态多源 (Stationary 24-Source)'),
+    # 第 6 种：同步辐射仿真模式，以**单元光子计数**架构改造。
+    # 能量箱数不固定为 8，由 sync_bins 决定（见 calculate_geometry 中的覆盖逻辑）。
+    # 物理与算法细节见 ct_synchrotron.py 及其引用的两份交接文档。
+    'synchrotron': (1, 8, True, '同步辐射 (Synchrotron · 单元光子计数改造)'),
 }
 
 
-def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_time, is_asymmetric=False, required_min_dist=150, required_arc_diff=120, bowtie_sfov=None, bowtie_edge_mm=30.0, scan_mode='axial', pitch=1.0, pixel_xy=0.625, pixel_z=0.625, n_ch_set=None, arch='dual_source', sampling_rate=2000.0, src_switch_us=200.0, scan_length=300.0, slice_thickness=1.0, slice_interval=1.0, shots_per_source=1, ring_sources=0):
-    """根据输入参数计算所有相关几何值和约束。"""
+def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_time, is_asymmetric=False, required_min_dist=150, required_arc_diff=120, bowtie_sfov=None, bowtie_edge_mm=30.0, scan_mode='axial', pitch=1.0, pixel_xy=0.625, pixel_z=0.625, n_ch_set=None, arch='dual_source', sampling_rate=2000.0, src_switch_us=200.0, scan_length=300.0, slice_thickness=1.0, slice_interval=1.0, shots_per_source=1, ring_sources=0,
+                        # ---- 同步辐射仿真模式专用（arch='synchrotron' 时生效）----
+                        # 硬件：源类型 / 焦点 / 探测器材料与像素 / 电荷云 / 整形时间
+                        sync_source='metaljet', sync_focus_um=None, sync_pixel_um=55.0,
+                        sync_sigma_c_um=None, sync_detector='CdTe', sync_shaping_ns=None,
+                        sync_cols=2048, sync_rows=512,
+                        # 采集：过采样帧数 / 能量箱 / 通量 / 标称能量
+                        sync_oversample=4, sync_bins=8, sync_energy_kev=60.0, sync_flux=1e8,
+                        # 算法：相衬 / 基底比值 / VMI 目标能量
+                        sync_phase=False, sync_delta_beta=100.0, sync_vmi_kev=65.0,
+                        # 目标：参考分辨率（现状基线）与目标分辨率
+                        sync_ref_res_um=100.0, sync_target_res_um=15.0):
+    """根据输入参数计算所有相关几何值和约束。
+
+    几何约定：RA 即源-等中心距（SOD），FDD − RA 即等中心-探测器距（ODD），
+    因此放大率 M = (SOD+ODD)/SOD = FDD/RA。同步辐射模式直接复用这一关系，
+    把"样品推向源"表达为调小 RA / 调大 FDD。
+    """
     
     # 转换为弧度
     alpha_rad = np.deg2rad(alpha)
@@ -334,6 +354,89 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
         'src_switch_us': float(src_switch_us),
     }
 
+    # =====================================================================
+    # 同步辐射仿真模式（第 6 种架构）：以单元光子计数架构改造
+    #
+    # 物理与算法全部落在 ct_synchrotron.py，依据：
+    #   《PCCT 模拟同步辐射 CT · 算法交接手册》(v1.0)
+    #   《PCD CT 细胞级扫描 · 工程交接文档》(v1.0)
+    # 这里只负责把它的派生量并进统一的结果字典，供 GUI / Agent 读取。
+    #
+    # 几何映射：RA = SOD（源-等中心），FDD − RA = ODD（等中心-探测器），
+    # 故 M = (SOD+ODD)/SOD = FDD/RA —— "把样品推向源"就是调小 RA / 调大 FDD。
+    # =====================================================================
+    sync = None
+    sync_flat = {}
+    if arch_key == 'synchrotron':
+        try:
+            import ct_synchrotron as _CS
+        except Exception:                            # pragma: no cover
+            _CS = None
+        if _CS is not None:
+            sync = _CS.analyze(
+                source=sync_source, focus_um=sync_focus_um,
+                sod_mm=float(RA), odd_mm=float(max(FDD - RA, 1e-6)),
+                pixel_um=sync_pixel_um, sigma_c_um=sync_sigma_c_um,
+                detector=sync_detector, oversample=sync_oversample,
+                bins=sync_bins, energy_kev=sync_energy_kev,
+                flux_per_mm2=sync_flux, shaping_ns=sync_shaping_ns,
+                ref_res_um=sync_ref_res_um, target_res_um=sync_target_res_um,
+                phase_enabled=sync_phase, delta_beta=sync_delta_beta,
+                vmi_kev=sync_vmi_kev, n_ch=int(sync_cols))
+
+            # 能量箱数由 sync_bins 决定（ARCH_TABLE 里固定为 8 只是占位）；
+            # 数据量按**同步辐射自己的探测器阵列**算，不用临床阵列。
+            results_arch['energy_dim'] = int(sync['spectrum']['bins'])
+            results_arch['data_cells'] = int(int(sync_cols) * int(sync_rows)
+                                             * views_total * results_arch['energy_dim'])
+
+            g, sm, mt = sync['geometry'], sync['sampling'], sync['mtf']
+            dt, sp, ph = sync['detector'], sync['spectrum'], sync['phase']
+            do, rc = sync['dose'], sync['reachable']
+            sync_flat = {
+                'sync_source': sync['source'],
+                'sync_source_label': sync['source_label'],
+                'sync_focus_um': float(sync['focus_um']),
+                'sync_M': g['M'], 'sync_M_star': g['M_star'],
+                'sync_M_practical': g['M_practical'],
+                'sync_p_eff_um': g['p_eff_um'], 'sync_penumbra_um': g['penumbra_um'],
+                'sync_r_um': g['r_um'], 'sync_r_star_um': g['r_star_um'],
+                'sync_limited_by': g['limited_by'], 'sync_fov_mm': g['fov_mm'],
+                'sync_cols': int(sync_cols), 'sync_rows': int(sync_rows),
+                'sync_f0': sm['f0_cyc_mm'], 'sync_fnyq_single': sm['f_nyq_single'],
+                'sync_fnyq_over': sm['f_nyq_over'], 'sync_fnyq_eff': sm['f_nyq_effective'],
+                'sync_K': sm['K'], 'sync_grid_um': sm['grid_um'],
+                'sync_oversample_saturated': sm['oversample_saturated'],
+                'sync_nyquist_um': sm['nyquist_um'],
+                'sync_mtf10': mt['mtf10_cyc_mm'], 'sync_mtf50': mt['mtf50_cyc_mm'],
+                'sync_lp_cm': mt['lp_cm_at_mtf10'],
+                'sync_res_mtf10_um': mt['res_at_mtf10_um'],
+                'sync_res_mtf50_um': mt['res_at_mtf50_um'],
+                'sync_detector': dt['material'], 'sync_detector_label': dt['material_label'],
+                'sync_sigma_c_um': dt['sigma_c_um'], 'sync_p_over_sigma': dt['p_over_sigma'],
+                'sync_spectral_ok': dt['spectral_ok'],
+                'sync_lambda_K_um': dt['lambda_K_um'], 'sync_escape_px': dt['escape_pixels'],
+                'sync_kescape_severe': dt['kescape_severe'],
+                'sync_shaping_ns': dt['shaping_ns'], 'sync_max_rate': dt['max_rate_cps'],
+                'sync_rate_per_pixel': dt['rate_per_pixel_cps'],
+                'sync_pileup_pct': float(dt['pileup_fraction'] * 100.0),
+                'sync_pileup_ok': dt['pileup_ok'],
+                'sync_bins': sp['bins'], 'sync_vmi_kev': sp['vmi_keV'],
+                'sync_vmi_ok': sp['vmi_ok'], 'sync_vmi_residual': sp['vmi_residual'],
+                'sync_vmi_weights': sp['vmi_weights'], 'sync_bin_edges': sp['bin_edges_keV'],
+                'sync_phase_on': ph['enabled'], 'sync_wavelength_mm': ph['wavelength_mm'],
+                'sync_paganin_alpha': ph['paganin_alpha_mm2'],
+                'sync_N': do['N'], 'sync_dose_n3': do['dose_x_n3'],
+                'sync_dose_n4': do['dose_x_n4'],
+                'sync_dose_verdict': do['clinical_verdict'],
+                'sync_brightness_gap_dec': do['brightness_gap_decades'],
+                'sync_swank': do['swank'], 'sync_dqe': do['dqe_at_half_nyq'],
+                'sync_neq': do['neq_at_half_nyq'], 'sync_shannon': do['shannon_bits_per_mm'],
+                'sync_r_best_um': rc['r_best_um'], 'sync_target_met': rc['target_met'],
+                'sync_bottleneck': rc['bottleneck'],
+                'sync_summary': _CS.summary_lines(sync),
+            }
+
     # --- 静态多源的**时序触发**模型：等效旋转采集 ---
     # 各源均在同一 R 圆上、对侧各有探测器 → 第 k 个源触发时的射线路径
     # 与"旋转机架位于 θ_k"完全一致。因此顺序触发 = 等效旋转采集，其视角角
@@ -544,4 +647,6 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
         "SFOV_B_effective": float(SFOV_B_effective),
         "SFOV_B_inner": float(SFOV_B_inner)
     }
+    # 同步辐射派生量（arch='synchrotron' 时非空）统一以 sync_ 前缀并入
+    results.update(sync_flat)
     return results, fan_angle_A, fan_angle_B
