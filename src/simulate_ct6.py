@@ -1712,10 +1712,52 @@ class FbpProcessPanel(QWidget):
         self.sino = sino
         ang = g.angles('short' if short else 'full360')
 
-        # 2) 重建：始终使用 LEAP 弯曲探测器（等角）直接扇束 FBP
-        #    「插值展平」只额外生成平行束正弦图用于显示/校核，不参与重建。
-        img = self.engine.fbp_fan(sino, g, ang, kernel=kernel, lowpass=lowpass,
-                                  vol_n=n_vol, voxel_mm=voxel, parker=parker)
+        # 2) 重建：检测器是 **2D 阵列**（n_rows > 1）时走**锥束 FDK**；
+        #    否则退回 2D 扇束 FBP。
+        #    此前主链只有 project_fan + fbp_fan，Z 向 292 排完全没参与重建 ——
+        #    这里把它接上：LEAP project_cone（锥束正向投影）
+        #    + fbp_cone_helical（FDK，LEAP 内部做锥束加权）。
+        #    环境变量 DSW_CT_CONE=fan 可强制退回旧路径做对照。
+        _cone_pref = 'auto'
+        try:
+            import os as _os
+            _cone_pref = str(_os.environ.get('DSW_CT_CONE', 'auto')).lower()
+        except Exception:
+            pass
+        n_rows_det = int(getattr(g, 'n_rows', 1) or 1)
+        cone_used = False
+        if _cone_pref != 'fan' and n_rows_det > 1 and (not use_ext):
+            try:
+                rp = float(getattr(g, 'z_cov', 0.0) or 0.0) / float(n_rows_det)
+                nz = int(np.clip(n_rows_det, 32, 160))
+                n_sl = int(np.clip(n_vol, 128, 256))
+                vol3, _zs = CH.build_helical_phantom(nz, n_sl, g.sfov, rp)
+                Gc = self.engine.project_cone(vol3, g, ang, n_rows_det, rp, 0.0)
+                _rec3 = np.asarray(self.engine.fbp_cone_helical(
+                    Gc, g, ang, n_rows_det, rp, 0.0, n_sl, nz))
+                if _rec3.ndim == 3 and _rec3.shape[0] >= 1:
+                    img = _rec3[nz // 2]
+                    try:
+                        self._phantom_ref = np.asarray(vol3)[nz // 2]
+                    except Exception:
+                        pass
+                    try:
+                        self.iv_fan.setImage(Gc[:, n_rows_det // 2, :])
+                    except Exception:
+                        pass
+                    cone_used = True
+                    note += (f"<b>锥束 FDK</b>：检测器 <b>{n_rows_det} 排</b> × "
+                             f"{getattr(g, 'n_ch', 0)} 列，排间距 {rp:.3f} mm，"
+                             f"Z 覆盖 {getattr(g, 'z_cov', 0):.1f} mm → "
+                             f"<b>Z 向数据已参与重建</b>（此前完全未用）<br>"
+                             f"LEAP <code>project_cone</code> + "
+                             f"<code>fbp_cone_helical</code>（FDK 锥束加权），"
+                             f"重建 {nz} 层 × {n_sl}² ，显示中央层<br>")
+            except Exception as _ex:
+                note += f"<b>锥束 FDK 失败</b>：{_ex} → 退回 2D 扇束 FBP<br>"
+        if not cone_used:
+            img = self.engine.fbp_fan(sino, g, ang, kernel=kernel, lowpass=lowpass,
+                                      vol_n=n_vol, voxel_mm=voxel, parker=parker)
         if self.rebin_sw.isChecked():
             try:
                 p_sino, theta, t_arr, d_t = self.engine.rebin_fan_to_parallel(sino, g, ang)
