@@ -1455,9 +1455,17 @@ class FbpProcessPanel(QWidget):
                         f"每点仅 {r.get('views_per_point', n_src)} 个视角 → 需迭代/TV 正则化，"
                         f"解析 FBP 会产生严重条形伪影。")
         _fermi_ok = bool(getattr(self, 'fermi_query', None)) or getattr(self, 'fermi_ready', False)
-        if e_dim > 1 and not _fermi_ok:
+        # 同步辐射是**准单色高通量**源，这恰恰是它相对实验室源的定义性优势：
+        # FBP 基线本就该按「单色等效（VMI）」口径跑，能量箱属于**下游**的材料分解
+        # /能谱分析，不是重建前提。故不因 energy_dim>1 阻断它（与双层/光子计数区分）。
+        _is_sync = str(r.get('arch_key', '')) == 'synchrotron'
+        if e_dim > 1 and not _fermi_ok and not _is_sync:
             err.append(f"<b>能量维 = {e_dim}</b>（双层/光子计数）：需要 Fermi 能量箱响应数据；"
                        f"Fermi 模型尚未就绪 → 能谱重建<b>无法进行</b>。")
+        if _is_sync and e_dim > 1:
+            warn.append(f"<b>同步辐射</b>：FBP 基线按<b>单色等效（VMI，{e_dim} 箱）</b>口径进行。"
+                        f"同步辐射的定义性优势就是准单色高通量，能量箱用于下游材料分解与"
+                        f"能谱分析，不是重建的前提；若要**箱分辨**重建，另需 Fermi 能量箱响应。")
         if not r.get('arch_ok', True):
             err.append(f"<b>不满足 180° 采样要求</b>：角度覆盖 "
                        f"{r.get('ang_cover_deg', 0):.1f}° &lt; 重建所需的 {need:.1f}°"
@@ -1553,7 +1561,8 @@ class FbpProcessPanel(QWidget):
                     + ''.join('&bull; %s<br>' % e for e in _errs)
                     + '<br><b>当前管线的能力边界</b>：系统 A / 单排扇束 / 单能量 / 旋转采集<br>'
                       '<b>可选操作</b>：<br>'
-                      '&nbsp;&nbsp;1) 切到「<b>单源宽体</b>」——当前唯一与本管线完全自洽的架构<br>'
+                      '&nbsp;&nbsp;1) 切到「<b>单源宽体</b>」或「<b>同步辐射</b>」'
+                      '——与"单系统 / 旋转采集 / 单色等效"口径自洽<br>'
                       '&nbsp;&nbsp;2) 或打开「<b>强制重建</b>」开关，以"仅系统 A / 单能量 / 单排"'
                       '的降级口径继续（结果仅代表该降级口径，<b>不代表所选架构</b>）')
             if _warns:
@@ -1691,6 +1700,34 @@ class FbpProcessPanel(QWidget):
             fs = None
 
         self.iv_fan.setImage(sino)
+
+        # ---- 同步辐射：焦点/孔径反卷积（手册 §5 腿④）----
+        # 过采样只把可恢复频带**推向** f₀=1/p，模糊必须靠反卷积收口。
+        # 这里用 ct_synchrotron 建模的**样品面系统 MTF**（焦点半影·像素孔径·电荷云）
+        # 做维纳反卷积 —— 模型驱动，不是盲反卷积。
+        # 重要边界：只有重建体素**细于** PSF 时才有实际收益；体素粗于 PSF 时基本是恒等变换。
+        if str(self.results.get('arch_key', '')) == 'synchrotron':
+            try:
+                _sw = getattr(self, 'sync_deconv_sw', None)
+                if _sw is not None and _sw.isChecked():
+                    import ct_synchrotron as _CSD
+                    _vox = float(self.results.get('iso_sampling_mm', 0.05) or 0.05) * 1000.0
+                    _psf = float(self.results.get('sync_penumbra_um', 0.0) or 0.0)
+                    img = _CSD.deconvolve_image(
+                        img, voxel_um=_vox,
+                        focus_um=float(self.results.get('sync_focus_um', 10.0)),
+                        pixel_um=float(self.results.get('sync_pixel_um', 55.0)),
+                        sigma_c_um=float(self.results.get('sync_sigma_c_um', 15.0)),
+                        M=float(self.results.get('sync_M', 1.0)), snr=50.0)
+                    _note = (f'　反卷积✓（体素 {_vox:.1f} µm '
+                             + ('< PSF %.1f µm，有效）' % _psf if _vox < _psf
+                                else '≥ PSF %.1f µm，收益有限）' % _psf))
+                    _hint = getattr(self, 'sync_hint', None)
+                    if _hint is not None:
+                        _hint.label().setText(_hint.label().text() + _note)
+            except Exception as _de:
+                print(f'[WARN] 同步辐射反卷积失败: {_de}')
+
         self.iv_rec.setImage(img)
         dt_all = time.perf_counter() - t_all
 
@@ -2123,6 +2160,13 @@ class MainWindow(CMainWindow):
                                          checked=False,
                                          on_change=self.update_simulation)
         sb.addWidget(self.sync_phase_sw)
+
+        # 手册 §5 腿④：过采样只把可恢复频带推向 f₀，模糊必须靠反卷积收口
+        self.sync_deconv_sw = SkeuoSwitch(self.sync_box,
+                                          text="焦点/孔径反卷积（PSF 收口）",
+                                          checked=True,
+                                          on_change=self.update_simulation)
+        sb.addWidget(self.sync_deconv_sw)
 
         self.sync_hint = CLabel(self.sync_box, width=360, height=18, text="",
                                 font_family="Microsoft YaHei UI", font_size=9,

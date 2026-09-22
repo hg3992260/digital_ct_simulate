@@ -106,6 +106,12 @@ def _inventory(win):
                 out['sync_phase_sw'] = {'kind': 'switch', 'value': bool(o.isChecked())}
             except Exception:
                 pass
+        o = getattr(win, 'sync_deconv_sw', None)
+        if o is not None:
+            try:
+                out['sync_deconv_sw'] = {'kind': 'switch', 'value': bool(o.isChecked())}
+            except Exception:
+                pass
     try:
         out['arch'] = {'kind': 'combo', 'value': win.arch_key,
                        'values': list(ARCH_KEYS.keys()),
@@ -245,8 +251,8 @@ def _apply(win, params):
                 box.combo_box().setCurrentText(str(v))
                 rep[k] = 'ok'
                 continue
-            if k == 'sync_phase_sw':
-                win.sync_phase_sw.setChecked(bool(v))
+            if k in ('sync_phase_sw', 'sync_deconv_sw'):
+                getattr(win, k).setChecked(bool(v))
                 rep[k] = 'ok'
                 continue
             p = win.recon_widget.fbp_panel

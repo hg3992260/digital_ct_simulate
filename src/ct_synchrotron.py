@@ -135,6 +135,59 @@ def charge_mtf(nu_cyc_per_mm, sigma_c_mm):
     return np.exp(-2.0 * (np.pi ** 2) * (float(sigma_c_mm) ** 2) * nu ** 2)
 
 
+# ---------------------------------------------------------------------------
+# 样品面（对象面）系统 MTF 与反卷积
+#
+# 手册 §5 腿④：过采样只把可恢复频带**推向** f₀，模糊必须靠反卷积收口。
+# 这里把三个模糊源都投影到**样品面**再合成，因此可以直接对重建图做反卷积：
+#     焦点半影   b      = f·(M−1)/M          （已在样品面）
+#     像素孔径   p/M                          （探测器像素投回样品面）
+#     电荷云     σ_c/M                        （探测器面扩散投回样品面）
+# ---------------------------------------------------------------------------
+
+def object_plane_mtf(nu_cyc_per_mm, focus_um, pixel_um, sigma_c_um, M):
+    """样品面的系统 MTF（焦点半影 · 像素孔径 · 电荷云三者乘积）。"""
+    m = max(float(M), 1e-9)
+    b_mm = float(focus_um) * max(m - 1.0, 0.0) / m / 1000.0
+    ap_mm = float(pixel_um) / m / 1000.0
+    sg_mm = float(sigma_c_um) / m / 1000.0
+    nu = np.asarray(nu_cyc_per_mm, dtype=float)
+    return disk_mtf(nu, b_mm) * aperture_mtf(nu, ap_mm) * charge_mtf(nu, sg_mm)
+
+
+def deconvolve_image(img, voxel_um, focus_um=10.0, pixel_um=55.0, sigma_c_um=15.0,
+                     M=4.0, snr=50.0):
+    """按**系统自身建模的 MTF** 做维纳反卷积（模型驱动，非盲反卷积）。
+
+    Wiener 权重： W(ν) = H(ν) / (H(ν)² + 1/SNR)
+
+    * H 取样品面系统 MTF，与重建图同一坐标（体素 ν 由 voxel_um 决定）
+    * SNR 越大越激进（越接近逆滤波，噪声放大越明显）；缺省 50 是保守值
+    * MTF 是径向对称的（各模糊源均各向同性），故只用 |ν|
+    * 体素数太少时直接原样返回，避免数值噪声
+    """
+    a = np.asarray(img, dtype=np.float64)
+    if a.ndim != 2 or min(a.shape) < 8:
+        return img
+
+    v_mm = max(float(voxel_um), 1e-6) / 1000.0
+    ny, nx = a.shape
+    fy = np.fft.fftfreq(ny, d=v_mm)
+    fx = np.fft.fftfreq(nx, d=v_mm)
+    NUY, NUX = np.meshgrid(fy, fx, indexing='ij')
+    NU = np.sqrt(NUY ** 2 + NUX ** 2)
+
+    H = object_plane_mtf(NU, focus_um, pixel_um, sigma_c_um, M)
+    W = H / (H ** 2 + 1.0 / max(float(snr), 1e-6))
+    out = np.real(np.fft.ifft2(np.fft.fft2(a) * W))
+
+    # 反卷积会放大直流附近的低频；保持与原图同量纲（按有效增益归一）
+    g = float(np.mean(H / (H ** 2 + 1.0 / max(float(snr), 1e-6))))
+    if g > 1e-9:
+        out = out / g
+    return out
+
+
 def fkn(e_kev):
     """Klein–Nishina 项（Compton 基函数，无单位形状函数）。"""
     e = np.asarray(e_kev, dtype=float) / 511.0
