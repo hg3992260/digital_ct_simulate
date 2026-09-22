@@ -145,6 +145,15 @@ if (Test-Path 'vendor/cuda') {
 }
 Copy-Item src/simulate_ct6.py dist/DSW_CT/ -Force
 
+# ---------------------------------------------------------------------------
+# 3b. 第三方许可声明
+#     LGPL-3.0 的 Qt/PySide6 与 BSD-3 的 xraylib 都要求**随发行物**提供声明。
+#     把 LICENSE / THIRD_PARTY_NOTICES.md 与各依赖自带的许可原文一并放进产物。
+# ---------------------------------------------------------------------------
+Write-Host "`n=== [3b] 收集第三方许可声明 ===" -ForegroundColor Cyan
+$code = Invoke-Native 'python' @('scripts/collect_licenses.py')
+if ($code -ne 0) { exit $code }
+
 Write-Host "`n--- dist/DSW_CT ---"
 Get-ChildItem dist/DSW_CT | Select-Object Name, Length | Format-Table -AutoSize
 

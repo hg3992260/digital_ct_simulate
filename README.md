@@ -345,12 +345,36 @@ pwsh -File scripts\build_windows.ps1
 - 静态多源提供"等效旋转锥束"与"模块束 + SART"两条路径；xraylib 化合物表缺失，
   改用元素加权构造 μ
 - `src/legacy/` 的 PyQt5 版本仅作历史参考，不再构建、不再修复
-- 仓库尚未附带 `LICENSE`
+
+---
+
+## 许可
+
+本项目自有代码以 **[MIT](LICENSE)** 发布，Copyright (c) 2026 hg3992260。
+
+但本程序**分发了若干第三方二进制**，因此还需履行它们的许可义务，完整声明见
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md)：
+
+| 组件 | 许可 | 关键义务 |
+| :--- | :--- | :--- |
+| **LEAP-CT** 1.26（`vendor/leapct/`） | MIT | 附版权与许可声明 |
+| **xraylib** 4.3.0（`vendor/xraylib/`） | BSD-3-Clause | 附声明；**不得**以作者名义背书 |
+| **Qt / PySide6** | LGPL-3.0 | 附声明；允许替换 / 重新链接 —— 本项目用 `--onedir` 打包以满足 |
+| CUDA 运行时 | NVIDIA EULA | 构建时从官方 wheel 取，仓库不含该二进制（超过 GitHub 单文件 100 MB 限制） |
+| 其余 Python 依赖 | MIT / BSD / PSF 系 | 附各自声明 |
+
+> ⚠️ 因此**不要**把打包方式改成 `--onefile`：`--onedir` 让 Qt 的 `*.dll` / `*.pyd`
+> 保持为 `_internal/` 下的独立文件，接收者可直接替换 —— 这是 LGPL-3.0 合规的关键。
+
+打包产物内会一并附带 `LICENSE`、`THIRD_PARTY_NOTICES.md` 与 `licenses/` 目录
+（各依赖自带的许可原文，由 `scripts/collect_licenses.py` 从已安装分发的元数据收集，
+不靠手抄，保证与实际打包版本对应）。
 
 ---
 
 ## 致谢
 
 - **[LEAP-CT](https://github.com/LLNL/LEAP)**（LLNL，MIT）—— 锥束 / 螺旋 / 模块束投影与重建算子
-- **[xraylib](https://github.com/tschoonj/xraylib)** —— 元素与化合物的 X 射线衰减截面
-- **[PyCt6](https://pypi.org/project/PyCt6/)** —— 主题化 PySide6 组件库
+- **[xraylib](https://github.com/tschoonj/xraylib)**（BSD-3-Clause）—— 元素与化合物的 X 射线衰减截面
+- **[PyCt6](https://pypi.org/project/PyCt6/)**（MIT）—— 主题化 PySide6 组件库
+- **[Qt for Python (PySide6)](https://www.qt.io/)**（LGPL-3.0）—— 界面与 OpenGL 视口运行时
