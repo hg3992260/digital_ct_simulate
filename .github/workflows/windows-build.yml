@@ -2,62 +2,42 @@ name: windows-build
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ "main", "master" ]
   workflow_dispatch:
 
 jobs:
-  build:
-    name: Build DSW_CT (Windows)
+  build-windows:
+    name: Build Windows EXE (CT Native Edition)
     runs-on: windows-latest
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
-        shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      # libleapct.dll 的真实依赖链：
-      #   libleapct.dll -> cufft64_11.dll -> nvJitLink_120_0.dll / nvrtc64_120_0.dll / nvcuda.dll(驱动自带)
-      # cublas / cusparse 完全用不到，而单个文件就有数百 MB，所以既不装也不打包。
-      - name: Bundle CUDA 12 runtime DLLs
-        shell: pwsh
+      - name: Complete CUDA 12 runtime from nvidia wheels
         run: |
-          pip install nvidia-cufft-cu12 nvidia-cuda-runtime-cu12 nvidia-nvjitlink-cu12 nvidia-cuda-nvrtc-cu12
-          python -c "import pathlib,sys,shutil; src=pathlib.Path(sys.prefix)/'Lib'/'site-packages'/'nvidia'; dst=pathlib.Path('vendor/cuda'); dst.mkdir(parents=True,exist_ok=True); pats=('cufft','cufftw','cudart','nvjitlink','nvrtc'); [shutil.copy2(f,dst/f.name) for f in src.rglob('*.dll') if any(f.name.lower().startswith(p) for p in pats)]; print('CUDA DLLs:', sorted(x.name for x in dst.glob('*.dll')))"
+          pip install nvidia-cuda-runtime-cu12 nvidia-cufft-cu12 nvidia-cusparse-cu12 nvidia-cublas-cu12
+          python -c "import pathlib,sys,shutil; p=pathlib.Path(sys.prefix)/'Lib'/'site-packages'/'nvidia'; d=pathlib.Path('vendor/cuda'); d.mkdir(parents=True,exist_ok=True); [shutil.copy2(f,d/f.name) for f in p.rglob('*.dll')]; print('CUDA DLLs:', sorted(x.name for x in d.glob('*.dll')))"
 
-      # 修复记录：
-      #  1) GitHub Windows runner 的 run: 默认 shell 是 PowerShell(pwsh)，不是 cmd.exe。
-      #     cmd 的行继续符 ^ 在 pwsh 里是非法语法 -> ParserError: Missing expression after unary operator '--'。
-      #     这里把 pyinstaller 参数写成**一整行**，彻底绕开继续符。
-      #  2) frozen_entry.py 用 runpy.run_path 动态加载主程序，PyInstaller 静态分析看不到它，
-      #     必须 --add-data "src/simulate_ct6.py;." 把源文件打进去，否则运行即 FileNotFoundError。
-      #  3) leapctype.py 靠 __file__ 定位同目录的 libleapct.dll，所以 vendor/leapct 必须作为
-      #     **真实文件**打进 _internal/vendor/leapct（不能只放进 PYZ）。xraylib / CUDA 同理。
-      #  4) torch 只是 leapctype 的可选后端（try/except 包着），排除掉可避免触发 torch hook。
-      - name: Build EXE (PyInstaller onedir)
-        shell: pwsh
+      - name: Build EXE
         run: |
-          pyinstaller --noconfirm --clean --windowed --onedir --name DSW_CT --paths src --add-data "assets;assets" --add-data "Fermi;Fermi" --add-data "src/simulate_ct6.py;." --add-data "vendor/leapct;vendor/leapct" --add-data "vendor/xraylib;vendor/xraylib" --add-data "vendor/cuda;vendor/cuda" --collect-all PyCt6 --exclude-module torch --hidden-import simulate_ct6 --hidden-import ct_geometry --hidden-import ct_leap --hidden-import ct_scene --hidden-import ct_helical --hidden-import ct_index --hidden-import ct_fermi --hidden-import ct_spectral --hidden-import ct6_bridge --hidden-import ct6_mcp_server --hidden-import pyqtgraph --hidden-import skimage --hidden-import OpenGL --hidden-import matplotlib --hidden-import imageio --hidden-import scipy --hidden-import scipy.ndimage src/frozen_entry.py
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item vendor/cuda/*.dll dist/DSW_CT/ -Force
-          Copy-Item src/simulate_ct6.py dist/DSW_CT/ -Force
-          Write-Host '--- dist/DSW_CT ---'
+          # 注意：windows-latest 默认 shell 为 PowerShell，续行符是反引号，不能用 cmd 的 ^
+          # 因此 pyinstaller 参数写成一整行
+          pyinstaller --noconfirm --clean --windowed --onedir --name DSW_CT --paths src --add-data "assets;assets" --add-data "Fermi;Fermi" --add-binary "vendor/leapct/libleapct.dll;vendor/leapct" --collect-binaries nvidia --hidden-import ct_geometry --hidden-import ct_leap --hidden-import ct_scene --hidden-import ct_helical --hidden-import ct_index --hidden-import ct_fermi --hidden-import ct_spectral --hidden-import ct6_bridge --hidden-import PySide6 --hidden-import pyqtgraph --hidden-import skimage --hidden-import OpenGL src/frozen_entry.py
+          if (Test-Path vendor/cuda) { Copy-Item vendor/cuda/*.dll dist/DSW_CT/ -Force }
+          if (Test-Path vendor/xraylib) { Copy-Item vendor/xraylib/*.pyd dist/DSW_CT/ -Force }
+          if (Test-Path vendor/leapct) { Copy-Item vendor/leapct/libleapct.dll dist/DSW_CT/ -Force }
+          if (Test-Path vendor/xraylib/xraylib.py) { Copy-Item vendor/xraylib/xraylib.py dist/DSW_CT/ -Force }
           Get-ChildItem dist/DSW_CT | Select-Object Name, Length | Format-Table -AutoSize
-
-      # 冒烟测试：确认产物真的拿得到主程序、LEAP 动态库、xraylib、CUDA 运行时，
-      # 避免"构建绿了但 exe 一启动就崩"。
-      - name: Smoke test bundled app
-        shell: pwsh
-        run: |
-          python -c "import pathlib,sys; root=pathlib.Path('dist/DSW_CT'); need=['DSW_CT.exe','_internal/simulate_ct6.py','_internal/assets','_internal/PyCt6','_internal/vendor/leapct/leapctype.py','_internal/vendor/leapct/libleapct.dll','_internal/vendor/xraylib/xraylib.py','_internal/vendor/cuda/cufft64_11.dll']; miss=[n for n in need if not (root/n).exists()]; print('missing:', miss); print('bundle MB: %.1f' % (sum(f.stat().st_size for f in root.rglob('*') if f.is_file())/1e6)); sys.exit('smoke FAILED, missing '+repr(miss) if miss else 0)"
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
