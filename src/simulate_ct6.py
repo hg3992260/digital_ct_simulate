@@ -2928,8 +2928,10 @@ class MainWindow(CMainWindow):
             SL = {}
             _LC = {'src': (1.0, 0.60, 0.30, 1.0), 'det': (0.40, 0.65, 1.0, 1.0),
                    'stage': (0.30, 1.0, 0.55, 1.0)}
+            # 中文标注必须用 CJK 字体：Segoe UI 会把汉字渲染成方框/空白
+            _FONT = QFont('Microsoft YaHei UI', 13, QFont.Weight.Bold)
             for key in ('src', 'mono', 'slit', 'stage', 'det', 'sod', 'odd', 'brk'):
-                t = gl.GLTextItem(pos=(0, 0, 0), text='', font=QFont('Segoe UI', 12),
+                t = gl.GLTextItem(pos=(0, 0, 0), text='', font=_FONT,
                                   color=_LC.get(key, (0.72, 0.84, 0.95, 1.0)))
                 self.view.addItem(t)
                 SL[key] = t
