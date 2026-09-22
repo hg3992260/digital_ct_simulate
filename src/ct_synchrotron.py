@@ -285,11 +285,19 @@ def analyze(source='metaljet', focus_um=None, sod_mm=200.0, odd_mm=400.0,
                 hi = mid
         m_practical = 0.5 * (lo + hi)
 
-    # 极限行为：p≫f → 焦点受限 r*→f；p≪f → 像素受限 r*→p
-    if p_um > 10.0 * f_um:
-        limited_by = 'focus'
-    elif f_um > 10.0 * p_um:
-        limited_by = 'pixel'
+    # 瓶颈判据：直接看焦点与像素的**量级比**。
+    # r* = pf/√(p²+f²) 的极限行为是 p≫f→r*≈f、f≫p→r*≈p，
+    # 所以"谁小谁就是瓶颈"；两者同量级时才叫 balanced。
+    # （先前用固定倍数阈值 + r* 与 f/p 的绝对比较都不对：r* 很小时
+    #   "r* ≤ 1.1p" 恒成立，会把被像素卡住的情况误判成 balanced。）
+    if f_um > 0 and p_um > 0:
+        _ratio = f_um / p_um
+        if 0.4 <= _ratio <= 2.5:
+            limited_by = 'balanced'          # 焦点与像素同量级 → 两者都要压
+        elif _ratio > 2.5:
+            limited_by = 'pixel'             # 焦点远大于像素 → 分辨率被像素卡住
+        else:
+            limited_by = 'focus'             # 焦点远小于像素 → 被焦点卡住
     else:
         limited_by = 'balanced'
 
