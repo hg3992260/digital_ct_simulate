@@ -2331,11 +2331,16 @@ class MainWindow(CMainWindow):
 
         # 扫描方案分组已在上方登记 pitch 滑块，此处不能清空
         self.sliders = getattr(self, 'sliders', {})
+        # 默认值取自《NeuViz P10 技术白皮书》：
+        #   焦点-等中心 RA = 590 mm，焦点-探测器 FDD = 1076 mm  → M = 1.8237
+        #   SFOV 610/500/330/250 mm，Z 轴覆盖 8 cm，探测器像素 0.274 mm（ISO 平面尺度）
+        #   由此自动推出 n_ch = SFOV/pixel = 500/0.274 ≈ 1825，
+        #   n_rows = Z_coverage/pixel_z = 80/0.274 = 292  ✓ 与白皮书"292 排"吻合
         self.add_slider(params_card, pc, "中心线夹角 α", 45, 150, 0.5, 95, "°", "alpha", True)
-        self.add_slider(params_card, pc, "F-ISO A (RA)", 400, 700, 1, 600, "mm", "RA")
-        self.add_slider(params_card, pc, "F-ISO B (RB)", 400, 700, 1, 600, "mm", "RB")
-        self.add_slider(params_card, pc, "FDD", 800, 1200, 1, 1100, "mm", "FDD")
-        self.add_slider(params_card, pc, "SFOV A", 400, 600, 1, 500, "mm", "SFOV_A")
+        self.add_slider(params_card, pc, "F-ISO A (RA)", 400, 700, 1, 590, "mm", "RA")
+        self.add_slider(params_card, pc, "F-ISO B (RB)", 400, 700, 1, 590, "mm", "RB")
+        self.add_slider(params_card, pc, "FDD", 800, 1200, 1, 1076, "mm", "FDD")
+        self.add_slider(params_card, pc, "SFOV A", 400, 700, 1, 500, "mm", "SFOV_A")
         self.add_slider(params_card, pc, "SFOV B", 300, 600, 1, 350, "mm", "SFOV_B")
         self.add_slider(params_card, pc, "Z轴覆盖", 10, 160, 1, 80, "mm", "Z_coverage")
         self.add_slider(params_card, pc, "旋转时间", 0.2, 0.5, 0.01, 0.28, "s", "rotation_time", True)
@@ -2347,16 +2352,18 @@ class MainWindow(CMainWindow):
                          text_color=P.TEXT_DIM)
         px_head.label().setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         pc.addWidget(px_head)
-        self.add_slider(params_card, pc, "物理像素 XY 平面长度", 0.100, 2.000, 0.001, 0.625,
+        self.add_slider(params_card, pc, "物理像素 XY 平面长度", 0.100, 2.000, 0.001, 0.274,
                         "mm", "pixel_xy", decimals=3)
-        self.add_slider(params_card, pc, "物理像素 Z 轴厚度", 0.100, 2.000, 0.001, 0.625,
+        self.add_slider(params_card, pc, "物理像素 Z 轴厚度", 0.100, 2.000, 0.001, 0.274,
                         "mm", "pixel_z", decimals=3)
 
-        # ---- 探测器通道数（每排单元数）：400-1500，可自动匹配或手动指定 ----
+        # ---- 探测器通道数（每排单元数）：可自动匹配或手动指定 ----
+        # 上限从 1500 放宽到 2600：P10 在 SFOV 500 / 像素 0.274 下需要约 1825 列，
+        # 原上限 1500 在手动模式下够不到。
         self.nch_auto_sw = SkeuoSwitch(params_card, text="通道数自动匹配 (由像素/SFOV 推导)",
                                        checked=True, on_change=self.update_simulation)
         pc.addWidget(self.nch_auto_sw)
-        self.add_slider(params_card, pc, "通道数 (每排单元数)", 400, 1500, 1, 825,
+        self.add_slider(params_card, pc, "通道数 (每排单元数)", 400, 2600, 1, 1825,
                         "", "n_ch_set", on_change=self._on_nch_drag)
         self.nch_hint = CLabel(params_card, width=360, height=18, text="",
                                font_family="Microsoft YaHei UI", font_size=9,
