@@ -20,13 +20,21 @@
 
 ## 界面预览
 
-| 主界面（几何 / 重建 / 伪影） | FBP 重建流程 |
-| :---: | :---: |
-| ![detail](docs/ct6_detail.png) | ![fbp](docs/ct6_fbp_process.png) |
+> 以下截图均由**程序自身**渲染（构造真实 `MainWindow` 后调用 `win.grab()`，
+> 与 Agent 控制桥的 `shot` 能力同源），拍的是**当前版本**界面，不是早期 PyQt5 原型。
 
-| 像素 / 等中心对位 | 重建窗口最大化 |
+**主界面** —— 左栏「系统几何参数 / 扫描方案 / 计算结果」（含 Bowtie 真正视野与边缘剂量比），
+右栏 `System Geometry` 与 `FOV Impact Analysis` 双 3D 视口：
+
+![主界面](docs/ct6_main.png)
+
+| FBP 重建流程（LEAP 四联图） | 光子计数架构 · Fermi 探测器响应 |
 | :---: | :---: |
-| ![pixel](docs/ct6_pixel_iso.png) | ![max](docs/ct6_maximize_recon.png) |
+| ![FBP](docs/ct6_fbp_process.png) | ![Fermi](docs/ct6_pcct_fermi.png) |
+
+**静态多源 24 源环形阵列** —— 架构切到 `static_multi` 时，3D 视口中可见整圈源环：
+
+![静态多源](docs/ct6_static_multi.png)
 
 ---
 
