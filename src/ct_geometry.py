@@ -32,6 +32,8 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
                         sync_source='metaljet', sync_focus_um=None, sync_pixel_um=55.0,
                         sync_sigma_c_um=None, sync_detector='CdTe', sync_shaping_ns=None,
                         sync_cols=2048, sync_rows=512,
+                        # µCT 几何：同步辐射用**自己的** SOD/ODD（不去挤临床的 RA/FDD）
+                        sync_sod_mm=100.0, sync_odd_mm=300.0,
                         # 采集：过采样帧数 / 能量箱 / 通量 / 标称能量
                         sync_oversample=4, sync_bins=8, sync_energy_kev=60.0, sync_flux=1e8,
                         # 算法：相衬 / 基底比值 / VMI 目标能量
@@ -375,7 +377,10 @@ def calculate_geometry(alpha, RA, RB, FDD, SFOV_A, SFOV_B, Z_coverage, rotation_
         if _CS is not None:
             sync = _CS.analyze(
                 source=sync_source, focus_um=sync_focus_um,
-                sod_mm=float(RA), odd_mm=float(max(FDD - RA, 1e-6)),
+                # 优先用同步辐射自己的 SOD/ODD；为 0 时回退到 RA / FDD−RA
+                sod_mm=(float(sync_sod_mm) if sync_sod_mm else float(RA)),
+                odd_mm=(float(sync_odd_mm) if sync_odd_mm
+                        else float(max(FDD - RA, 1e-6))),
                 pixel_um=sync_pixel_um, sigma_c_um=sync_sigma_c_um,
                 detector=sync_detector, oversample=sync_oversample,
                 bins=sync_bins, energy_kev=sync_energy_kev,

@@ -2077,6 +2077,15 @@ class MainWindow(CMainWindow):
         self.add_slider(self.sync_box, sb, "焦点尺寸 f", 0.3, 200.0, 0.1, 10.0, "µm",
                         "sync_focus_um", decimals=1)
 
+        # µCT 几何 ≠ 机架几何：同步辐射用**自己的** SOD / ODD，不去挤临床的 RA/FDD。
+        # M = (SOD+ODD)/SOD；默认 100/300 → M=4（手册 §5 的手算工况）。
+        # 临床 RA 滑块下限是 400 mm，直接借它的话 M 最大只有 3，
+        # 会把手册要求的「实用放大率 M ≈ 20–100」整个挡在量程外。
+        self.add_slider(self.sync_box, sb, "源-物距 SOD", 10.0, 1000.0, 5.0, 100.0, "mm",
+                        "sync_sod_mm", decimals=0)
+        self.add_slider(self.sync_box, sb, "物-探距 ODD", 10.0, 3000.0, 10.0, 300.0, "mm",
+                        "sync_odd_mm", decimals=0)
+
         self.sync_det_combo = CComboBox(
             self.sync_box, width=376, height=28,
             font_family="Microsoft YaHei UI", font_size=10,
@@ -3127,6 +3136,8 @@ class MainWindow(CMainWindow):
             sync_detector=(self._sync_det_order[self.sync_det_combo.combo_box().currentIndex()]
                            if getattr(self, '_sync_det_order', None) else 'CdTe'),
             sync_focus_um=params.get('sync_focus_um'),
+            sync_sod_mm=params.get('sync_sod_mm', 100.0),
+            sync_odd_mm=params.get('sync_odd_mm', 300.0),
             sync_pixel_um=params.get('sync_pixel_um', 55.0),
             sync_sigma_c_um=params.get('sync_sigma_c_um'),
             sync_oversample=int(params.get('sync_oversample', 4)),
