@@ -2,42 +2,37 @@ name: windows-build
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    name: Build Windows EXE (CT Native Edition)
+  build:
+    name: Build DSW_CT (Windows)
     runs-on: windows-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: Install dependencies
+        shell: pwsh
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Complete CUDA 12 runtime from nvidia wheels
-        run: |
-          pip install nvidia-cuda-runtime-cu12 nvidia-cufft-cu12 nvidia-cusparse-cu12 nvidia-cublas-cu12
-          python -c "import pathlib,sys,shutil; p=pathlib.Path(sys.prefix)/'Lib'/'site-packages'/'nvidia'; d=pathlib.Path('vendor/cuda'); d.mkdir(parents=True,exist_ok=True); [shutil.copy2(f,d/f.name) for f in p.rglob('*.dll')]; print('CUDA DLLs:', sorted(x.name for x in d.glob('*.dll')))"
-
-      - name: Build EXE
-        run: |
-          # 注意：windows-latest 默认 shell 为 PowerShell，续行符是反引号，不能用 cmd 的 ^
-          # 因此 pyinstaller 参数写成一整行
-          pyinstaller --noconfirm --clean --windowed --onedir --name DSW_CT --paths src --add-data "assets;assets" --add-data "Fermi;Fermi" --add-binary "vendor/leapct/libleapct.dll;vendor/leapct" --collect-binaries nvidia --hidden-import ct_geometry --hidden-import ct_leap --hidden-import ct_scene --hidden-import ct_helical --hidden-import ct_index --hidden-import ct_fermi --hidden-import ct_spectral --hidden-import ct6_bridge --hidden-import PySide6 --hidden-import pyqtgraph --hidden-import skimage --hidden-import OpenGL src/frozen_entry.py
-          if (Test-Path vendor/cuda) { Copy-Item vendor/cuda/*.dll dist/DSW_CT/ -Force }
-          if (Test-Path vendor/xraylib) { Copy-Item vendor/xraylib/*.pyd dist/DSW_CT/ -Force }
-          if (Test-Path vendor/leapct) { Copy-Item vendor/leapct/libleapct.dll dist/DSW_CT/ -Force }
-          if (Test-Path vendor/xraylib/xraylib.py) { Copy-Item vendor/xraylib/xraylib.py dist/DSW_CT/ -Force }
-          Get-ChildItem dist/DSW_CT | Select-Object Name, Length | Format-Table -AutoSize
+      # All build parameters live in scripts/build_windows.ps1, NOT here.
+      # Reason: this file is gated behind GitHub's 'workflow' OAuth scope, so every
+      # one-line change needs a manual web edit, while repo scripts can just be pushed.
+      # The script handles: CUDA runtime collection, assets/LOGO.jpg -> assets/logo.ico,
+      # --icon, --copy-metadata imageio+lazy_loader, PyInstaller onedir packaging, and a
+      # frozen-environment self-test (real imports + actually constructing a LEAP engine).
+      - name: Build + frozen self-test
+        shell: pwsh
+        run: pwsh -File scripts/build_windows.ps1
 
       - name: Upload Windows Artifact
         uses: actions/upload-artifact@v4
