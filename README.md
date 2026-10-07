@@ -1,6 +1,6 @@
 # digital_ct_simulate
 
-**双源 CT 真实几何模拟器 · Native Edition（CT6）**
+**CT 真实几何架构模拟器 · Native Edition（CT6）**
 
 [![windows-build](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml/badge.svg)](https://github.com/hg3992260/digital_ct_simulate/actions/workflows/windows-build.yml)
 [![release](https://img.shields.io/github/v/release/hg3992260/digital_ct_simulate?label=release&color=3070B3)](https://github.com/hg3992260/digital_ct_simulate/releases/latest)
